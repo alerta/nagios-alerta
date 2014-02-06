@@ -23,7 +23,7 @@
 
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
-char *VERSION = "0.1";
+char *VERSION = "0.1.1";
 
 void *alerta_module_handle = NULL;
 
@@ -209,11 +209,18 @@ check_handler (int event_type, void *data)
         write_to_all_logs ("[alerta] Host check received.", NSLOG_INFO_MESSAGE);
 
         sprintf (message,
-                 "{ \"origin\": \"nagios3/%s\", \"resource\": \"%s\", \"event\": \"%s\", \"group\": \"%s\", \"severity\": \"%s\", \"environment\": [ \"%s\" ], \"service\": [ \"%s\" ], \"tags\": [ \"%s\" ], \"text\": \"%s\", \"value\": \"%d/%d (%s)\", \"type\": \"nagiosHostAlert\", \"rawData\": \"%s\" }\n\r",
-                 hostname, host_chk_data->host_name, "Host Check", "Nagios", display_state (host_chk_data->state), "INFRA",
-                 "Common", display_check_type (host_chk_data->check_type), host_chk_data->output,
-                 host_chk_data->current_attempt, host_chk_data->max_attempts, display_state_type (host_chk_data->state_type),
-                 host_chk_data->perf_data ? host_chk_data->perf_data : "");
+                 "{ \"origin\": \"nagios3/%s\", \"resource\": \"%s\", \"event\": \"%s\", \"group\": \"%s\", \"severity\": \"%s\", \"environment\": [ \"%s\" ], \"service\": [ \"%s\" ], \"tags\": { \"check\": \"%s\" }, \"text\": \"%s\", \"value\": \"%d/%d (%s)\", \"type\": \"nagiosHostAlert\", \"rawData\": \"%s\" }\n\r",
+                 hostname, /* origin */
+                 host_chk_data->host_name, /* resource */
+                 "Host Check", /* event */
+                 "Nagios", /* group */
+                 display_state (host_chk_data->state), /* severity */
+                 "INFRA",  /* environment */
+                 "Common", /* service */
+                 display_check_type (host_chk_data->check_type), /* tags */
+                 host_chk_data->output, /* text */
+                 host_chk_data->current_attempt, host_chk_data->max_attempts, display_state_type (host_chk_data->state_type), /* value */
+                 host_chk_data->perf_data ? host_chk_data->perf_data : ""); /* rawData */
 
         if (debug)
           write_to_all_logs (message, NSLOG_INFO_MESSAGE);
@@ -277,11 +284,18 @@ check_handler (int event_type, void *data)
           write_to_all_logs ("[alerta] Service check received.", NSLOG_INFO_MESSAGE);
 
           sprintf (message,
-                   "{ \"origin\": \"nagios3/%s\", \"resource\": \"%s\", \"event\": \"%s\", \"group\": \"%s\", \"severity\": \"%s\", \"environment\": [ \"%s\" ], \"service\": [ \"%s\" ], \"tags\": [ \"%s\" ], \"text\": \"%s\", \"value\": \"%d/%d (%s)\", \"type\": \"nagioServiceAlert\", \"rawData\": \"%s\" }\n\r",
-                   hostname, svc_chk_data->host_name, svc_chk_data->service_description, "Nagios",
-                   display_state (svc_chk_data->state), "INFRA", "Common", display_check_type (svc_chk_data->check_type),
-                   svc_chk_data->output, svc_chk_data->current_attempt, svc_chk_data->max_attempts,
-                   display_state_type (svc_chk_data->state_type), svc_chk_data->perf_data ? svc_chk_data->perf_data : "");
+                   "{ \"origin\": \"nagios3/%s\", \"resource\": \"%s\", \"event\": \"%s\", \"group\": \"%s\", \"severity\": \"%s\", \"environment\": [ \"%s\" ], \"service\": [ \"%s\" ], \"tags\": { \"check\": \"%s\" }, \"text\": \"%s\", \"value\": \"%d/%d (%s)\", \"type\": \"nagioServiceAlert\", \"rawData\": \"%s\" }\n\r",
+                   hostname, /* origin */
+                   svc_chk_data->host_name, /* resource */
+                   svc_chk_data->service_description, /* event */
+                   "Nagios", /* group */
+                   display_state (svc_chk_data->state), /* severity */
+                   "INFRA",  /* environment */
+                   "Common", /* service */
+                   display_check_type (svc_chk_data->check_type), /* tags */
+                   svc_chk_data->output, /* text */
+                   svc_chk_data->current_attempt, svc_chk_data->max_attempts, display_state_type (svc_chk_data->state_type), /* value */
+                   svc_chk_data->perf_data ? svc_chk_data->perf_data : "");
 
           if (debug)
             write_to_all_logs (message, NSLOG_INFO_MESSAGE);
