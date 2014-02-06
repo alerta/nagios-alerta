@@ -15,19 +15,20 @@ Installation
 ------------
 
     $ git clone https://github.com/alerta/nagios3-alerta.git
+    $ cd nagios3-alerta
     $ make
-    $ sudo cp src/alerta-neb.o /usr/lib/nagios3
+    $ sudo make install
     $ sudo service nagios3 restart
 
 Alerts
 ------
 
-nagios.cfg
+To forward host and service check results to Alerta, modify `/etc/nagios3/nagios.cfg` as follows:
 ```
 broker_module=/usr/lib/nagios3/alerta-neb.o http://localhost:8080
 ```
 
-To enable debug mode:
+And to enable debug mode:
 ```
 broker_module=/usr/lib/nagios3/alerta-neb.o http://localhost:8080 debug=1
 ```
@@ -35,7 +36,9 @@ broker_module=/usr/lib/nagios3/alerta-neb.o http://localhost:8080 debug=1
 Heartbeats
 ----------
 
-1. define a heartbeat command
+To configure the Nagios server to send regular heartbeats to Alerta to ensure that Nagios and the event broker are still forwarding alerts configure a dummy service check as follows:
+
+1. Define a heartbeat command and add it to `/etc/nagios3/commands.cfg`:
 ```
 define command{
         command_name    check_heartbeat
@@ -43,7 +46,7 @@ define command{
 }
 ```
 
-2. define a hostgroup for nagios servers
+2. Define a hostgroup for the Nagios servers that have the Alerta event broker installed and add it to `/etc/nagios3/conf.d/hostgroups_nagios2.cfg`:
 ```
 define hostgroup {
         hostgroup_name  nagios-servers
@@ -52,7 +55,7 @@ define hostgroup {
 }
 ```
 
-3. define a Heartbeat service check to execute every minute:
+3. Define a Heartbeat service check to execute every minute and add it to `/etc/nagios3/conf.d/services_nagios2.cfg`:
 ```
 define service {
         hostgroup_name                  nagios-servers
