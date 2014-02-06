@@ -23,7 +23,7 @@
 
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
-char *VERSION = "0.1.1";
+char *VERSION = "0.1.2";
 
 void *alerta_module_handle = NULL;
 
@@ -209,7 +209,20 @@ check_handler (int event_type, void *data)
         write_to_all_logs ("[alerta] Host check received.", NSLOG_INFO_MESSAGE);
 
         sprintf (message,
-                 "{ \"origin\": \"nagios3/%s\", \"resource\": \"%s\", \"event\": \"%s\", \"group\": \"%s\", \"severity\": \"%s\", \"environment\": [ \"%s\" ], \"service\": [ \"%s\" ], \"tags\": { \"check\": \"%s\" }, \"text\": \"%s\", \"value\": \"%d/%d (%s)\", \"type\": \"nagiosHostAlert\", \"rawData\": \"%s\" }\n\r",
+                 "{"
+                 "\"origin\":\"nagios3/%s\","
+                 "\"resource\":\"%s\","
+                 "\"event\":\"%s\","
+                 "\"group\":\"%s\","
+                 "\"severity\":\"%s\","
+                 "\"environment\":[\"%s\"],"
+                 "\"service\":[\"%s\"],"
+                 "\"tags\":{\"check\":\"%s\"},"
+                 "\"text\":\"%s\","
+                 "\"value\":\"%d/%d (%s)\","
+                 "\"type\":\"nagiosHostAlert\","
+                 "\"rawData\":\"%s\""
+                 " }\n\r",
                  hostname, /* origin */
                  host_chk_data->host_name, /* resource */
                  "Host Check", /* event */
@@ -284,7 +297,20 @@ check_handler (int event_type, void *data)
           write_to_all_logs ("[alerta] Service check received.", NSLOG_INFO_MESSAGE);
 
           sprintf (message,
-                   "{ \"origin\": \"nagios3/%s\", \"resource\": \"%s\", \"event\": \"%s\", \"group\": \"%s\", \"severity\": \"%s\", \"environment\": [ \"%s\" ], \"service\": [ \"%s\" ], \"tags\": { \"check\": \"%s\" }, \"text\": \"%s\", \"value\": \"%d/%d (%s)\", \"type\": \"nagioServiceAlert\", \"rawData\": \"%s\" }\n\r",
+                   "{"
+                   "\"origin\":\"nagios3/%s\","
+                   "\"resource\":\"%s\","
+                   "\"event\":\"%s\","
+                   "\"group\":\"%s\","
+                   "\"severity\":\"%s\","
+                   "\"environment\":[\"%s\"],"
+                   "\"service\":[\"%s\"],"
+                   "\"tags\":{\"check\":\"%s\"},"
+                   "\"text\":\"%s\","
+                   "\"value\":\"%d/%d (%s)\","
+                   "\"type\":\"nagiosServiceAlert\","
+                   "\"rawData\":\"%s\""
+                   "}\n\r",
                    hostname, /* origin */
                    svc_chk_data->host_name, /* resource */
                    svc_chk_data->service_description, /* event */
