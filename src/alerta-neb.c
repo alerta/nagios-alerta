@@ -23,7 +23,7 @@
 
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
-char *VERSION = "0.1.2";
+char *VERSION = "3.0.0";
 
 void *alerta_module_handle = NULL;
 
@@ -215,9 +215,9 @@ check_handler (int event_type, void *data)
                  "\"event\":\"%s\","
                  "\"group\":\"%s\","
                  "\"severity\":\"%s\","
-                 "\"environment\":[\"%s\"],"
+                 "\"environment\":\"%s\","
                  "\"service\":[\"%s\"],"
-                 "\"tags\":{\"check\":\"%s\"},"
+                 "\"tags\":[\"check=%s\"],"
                  "\"text\":\"%s\","
                  "\"value\":\"%d/%d (%s)\","
                  "\"type\":\"nagiosHostAlert\","
@@ -228,8 +228,8 @@ check_handler (int event_type, void *data)
                  "Host Check", /* event */
                  "Nagios", /* group */
                  display_state (host_chk_data->state), /* severity */
-                 "INFRA",  /* environment */
-                 "Common", /* service */
+                 "infrastructure",  /* environment */
+                 "Platform", /* service */
                  display_check_type (host_chk_data->check_type), /* tags */
                  host_chk_data->output, /* text */
                  host_chk_data->current_attempt, host_chk_data->max_attempts, display_state_type (host_chk_data->state_type), /* value */
@@ -266,7 +266,7 @@ check_handler (int event_type, void *data)
 
           if (svc_chk_data->return_code == STATE_OK) {
             write_to_all_logs ("[alerta] Heartbeat service check OK.", NSLOG_INFO_MESSAGE);
-            sprintf (message, "{ \"origin\": \"nagios3/%s\", \"type\": \"Heartbeat\", \"version\": \"%s\" }\n\r",
+            sprintf (message, "{ \"origin\": \"nagios3/%s\", \"type\": \"Heartbeat\", \"tags\": [\"%s\"] }\n\r",
                      svc_chk_data->host_name, VERSION);
 
             if (debug)
@@ -303,9 +303,9 @@ check_handler (int event_type, void *data)
                    "\"event\":\"%s\","
                    "\"group\":\"%s\","
                    "\"severity\":\"%s\","
-                   "\"environment\":[\"%s\"],"
+                   "\"environment\":\"%s\","
                    "\"service\":[\"%s\"],"
-                   "\"tags\":{\"check\":\"%s\"},"
+                   "\"tags\":[\"check=%s\"],"
                    "\"text\":\"%s\","
                    "\"value\":\"%d/%d (%s)\","
                    "\"type\":\"nagiosServiceAlert\","
@@ -316,8 +316,8 @@ check_handler (int event_type, void *data)
                    svc_chk_data->service_description, /* event */
                    "Nagios", /* group */
                    display_state (svc_chk_data->state), /* severity */
-                   "INFRA",  /* environment */
-                   "Common", /* service */
+                   "infrastructure",  /* environment */
+                   "Platform", /* service */
                    display_check_type (svc_chk_data->check_type), /* tags */
                    svc_chk_data->output, /* text */
                    svc_chk_data->current_attempt, svc_chk_data->max_attempts, display_state_type (svc_chk_data->state_type), /* value */
