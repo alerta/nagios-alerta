@@ -23,7 +23,7 @@
 
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
-char *VERSION = "3.0.0";
+char *VERSION = "3.1.0";
 
 void *alerta_module_handle = NULL;
 
@@ -34,6 +34,7 @@ char message[4096];
 char hostname[1024];
 char alert_url[1024];
 char heartbeat_url[1024];
+char auth_header[1024];
 
 CURL *curl;
 CURLcode res;
@@ -149,16 +150,26 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
 
   write_to_all_logs ("[alerta] Initialising Nagios-Alerta Gateway module", NSLOG_INFO_MESSAGE);
 
-  char endpoint[1024];
+  char endpoint[1024] = "";
+  char key[1024] = "";
   char *token;
   while ((token = strsep (&args, " ")) != NULL) {
     if (strncasecmp (token, "http://", 7) == 0)
       strcpy (endpoint, token);
+    if (strncasecmp (token, "key=", 4) == 0)
+      strcpy (key, token+4);
     if (strncasecmp (token, "debug=1", 7) == 0)
       debug = 1;
   }
-  sprintf (alert_url, "%s/alert", endpoint);
-  sprintf (heartbeat_url, "%s/heartbeat", endpoint);
+  if (strlen(endpoint)) {
+    sprintf (alert_url, "%s/alert", endpoint);
+    sprintf (heartbeat_url, "%s/heartbeat", endpoint);
+    if (strlen(key))
+      sprintf (auth_header, "Authorization: Key %s", key);
+  } else {
+    write_to_all_logs ("[alerta] API endpoint not configured", NSLOG_CONFIG_ERROR);
+    exit(1);
+  }
 
   if (debug)
     write_to_all_logs ("[alerta] debug is on", NSLOG_INFO_MESSAGE);
@@ -168,7 +179,7 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
   neb_register_callback (NEBCALLBACK_HOST_CHECK_DATA, alerta_module_handle, 0, check_handler);
   neb_register_callback (NEBCALLBACK_SERVICE_CHECK_DATA, alerta_module_handle, 0, check_handler);
 
-  sprintf (message, "[alerta] Forward service and host checks to %s", alert_url);
+  sprintf (message, "[alerta] Forward service and host checks to %s", endpoint);
   write_to_all_logs (message, NSLOG_INFO_MESSAGE);
 
   return NEB_OK;
@@ -228,7 +239,7 @@ check_handler (int event_type, void *data)
                  "Host Check", /* event */
                  "Nagios", /* group */
                  display_state (host_chk_data->state), /* severity */
-                 "infrastructure",  /* environment */
+                 "Production",  /* environment */
                  "Platform", /* service */
                  display_check_type (host_chk_data->check_type), /* tags */
                  host_chk_data->output, /* text */
@@ -240,6 +251,8 @@ check_handler (int event_type, void *data)
 
         struct curl_slist *headers = NULL;
         headers = curl_slist_append (headers, "Content-Type: application/json");
+        if (strlen(auth_header))
+          headers = curl_slist_append (headers, auth_header);
         curl_easy_setopt (curl, CURLOPT_URL, alert_url);
         curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
         curl_easy_setopt (curl, CURLOPT_POSTFIELDS, message);
@@ -249,6 +262,14 @@ check_handler (int event_type, void *data)
           sprintf (message, "[alerta] curl_easy_perform() failed: %s", curl_easy_strerror (res));
           write_to_all_logs (message, NSLOG_RUNTIME_ERROR);
         }
+
+        long status;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+        sprintf (message, "[alerta] HTTP response status=%ld", status);
+        if (status != 200)
+          write_to_all_logs (message, NSLOG_RUNTIME_WARNING);
+        else if (status == 200 && debug)
+          write_to_all_logs (message, NSLOG_INFO_MESSAGE);
 
         curl_easy_cleanup (curl);
       }
@@ -274,6 +295,8 @@ check_handler (int event_type, void *data)
 
             struct curl_slist *headers = NULL;
             headers = curl_slist_append (headers, "Content-Type: application/json");
+            if (strlen(auth_header))
+              headers = curl_slist_append (headers, auth_header);
             curl_easy_setopt (curl, CURLOPT_URL, heartbeat_url);
             curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
             curl_easy_setopt (curl, CURLOPT_POSTFIELDS, message);
@@ -283,6 +306,13 @@ check_handler (int event_type, void *data)
               sprintf (message, "[alerta] curl_easy_perform() failed: %s", curl_easy_strerror (res));
               write_to_all_logs (message, NSLOG_RUNTIME_ERROR);
             }
+            long status;
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+            sprintf (message, "[alerta] HTTP response status=%ld", status);
+            if (status != 200)
+              write_to_all_logs (message, NSLOG_RUNTIME_WARNING);
+            else if (status == 200 && debug)
+              write_to_all_logs (message, NSLOG_INFO_MESSAGE);
 
             curl_easy_cleanup (curl);
 
@@ -316,7 +346,7 @@ check_handler (int event_type, void *data)
                    svc_chk_data->service_description, /* event */
                    "Nagios", /* group */
                    display_state (svc_chk_data->state), /* severity */
-                   "infrastructure",  /* environment */
+                   "Production",  /* environment */
                    "Platform", /* service */
                    display_check_type (svc_chk_data->check_type), /* tags */
                    svc_chk_data->output, /* text */
@@ -328,6 +358,8 @@ check_handler (int event_type, void *data)
 
           struct curl_slist *headers = NULL;
           headers = curl_slist_append (headers, "Content-Type: application/json");
+          if (strlen(auth_header))
+            headers = curl_slist_append (headers, auth_header);
           curl_easy_setopt (curl, CURLOPT_URL, alert_url);
           curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
           curl_easy_setopt (curl, CURLOPT_POSTFIELDS, message);
@@ -337,6 +369,14 @@ check_handler (int event_type, void *data)
             sprintf (message, "[alerta] curl_easy_perform() failed: %s", curl_easy_strerror (res));
             write_to_all_logs (message, NSLOG_RUNTIME_ERROR);
           }
+
+          long status;
+          curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+          sprintf (message, "[alerta] HTTP response status=%ld", status);
+          if (status != 200)
+            write_to_all_logs (message, NSLOG_RUNTIME_WARNING);
+          else if (status == 200 && debug)
+            write_to_all_logs (message, NSLOG_INFO_MESSAGE);
 
           curl_easy_cleanup (curl);
         }
