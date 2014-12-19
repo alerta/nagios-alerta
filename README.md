@@ -9,7 +9,7 @@ Transform this ...
 
 Into this ...
 
-![alerta](/docs/images/alerta.png?raw=true)
+![alerta](/docs/images/nagios3-alerta-v3.png?raw=true)
 
 Installation
 ------------
