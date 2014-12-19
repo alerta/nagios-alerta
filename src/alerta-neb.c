@@ -157,8 +157,8 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
     if (strncasecmp (token, "debug=1", 7) == 0)
       debug = 1;
   }
-  sprintf (alert_url, "%s/api/alert", endpoint);
-  sprintf (heartbeat_url, "%s/api/heartbeat", endpoint);
+  sprintf (alert_url, "%s/alert", endpoint);
+  sprintf (heartbeat_url, "%s/heartbeat", endpoint);
 
   if (debug)
     write_to_all_logs ("[alerta] debug is on", NSLOG_INFO_MESSAGE);
