@@ -5,7 +5,7 @@ Consolidate Nagios alerts from across multiple sites into a single "at-a-glance"
 
 Transform this ...
 
-![nagios](/docs/images/nagios-v3.png?raw=true)
+![nagios](/docs/images/nagios3-v3.png?raw=true)
 
 Into this ...
 
