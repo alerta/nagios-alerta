@@ -8,16 +8,37 @@
  *
  *****************************************************************************/
 
-#include "../include/nebmodules.h"
-#include "../include/nebcallbacks.h"
+#ifdef BUILD_NAGIOS_3X
+#include "../include/nagios-3x/nebstructs.h"
+#include "../include/nagios-3x/nebmodules.h"
+#include "../include/nagios-3x/nebcallbacks.h"
+#include "../include/nagios-3x/neberrors.h"
+#include "../include/nagios-3x/broker.h"
+#endif
+#ifdef BUILD_NAGIOS_4X
+#include "../include/nagios-4x/nebstructs.h"
+#include "../include/nagios-4x/nebmodules.h"
+#include "../include/nagios-4x/nebcallbacks.h"
+#include "../include/nagios-4x/neberrors.h"
+#include "../include/nagios-4x/broker.h"
+#endif
 
-#include "../include/nebstructs.h"
-#include "../include/neberrors.h"
-#include "../include/broker.h"
-
-#include "../include/config.h"
-#include "../include/common.h"
-#include "../include/nagios.h"
+#ifdef BUILD_NAGIOS_3X
+#include "../include/nagios-3x/common.h"
+#include "../include/nagios-3x/nagios.h"
+#include "../include/nagios-3x/config.h"
+#include "../include/nagios-3x/downtime.h"
+#include "../include/nagios-3x/comments.h"
+#include "../include/nagios-3x/macros.h"
+#endif
+#ifdef BUILD_NAGIOS_4X
+#include "../include/nagios-4x/common.h"
+#include "../include/nagios-4x/nagios.h"
+#include "../include/nagios-4x/config.h"
+#include "../include/nagios-4x/downtime.h"
+#include "../include/nagios-4x/comments.h"
+#include "../include/nagios-4x/macros.h"
+#endif
 
 #include <curl/curl.h>
 
