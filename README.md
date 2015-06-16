@@ -16,8 +16,12 @@ Installation
 
     $ git clone https://github.com/alerta/nagios3-alerta.git
     $ cd nagios3-alerta
+
+    $ autoreconf -i
+    $ ./configure
     $ make
     $ sudo make install
+
     $ sudo service nagios3 restart
 
 Alerts
