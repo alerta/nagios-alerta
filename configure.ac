@@ -1,12 +1,13 @@
 
 AC_PREREQ([2.69])
 AC_INIT([alerta-neb], [3.1.1], [nick.satterly@theguardian.com])
-AM_INIT_AUTOMAKE
 AC_CONFIG_SRCDIR([src/alerta-neb.c])
 AC_CONFIG_HEADERS([config.h])
+AM_INIT_AUTOMAKE
 
 # Checks for programs.
 AC_PROG_CC
+AC_PROG_RANLIB
 AC_PROG_INSTALL
 
 # Checks for libraries.

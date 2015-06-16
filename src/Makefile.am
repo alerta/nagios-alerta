@@ -1,4 +1,4 @@
 
-neb_LIBRARIES = alerta-neb.o
-
-alerta_neb_SOURCES = alerta-neb.c
+lib_LIBRARIES = libalerta-neb.a
+libalerta_neb_a_SOURCES = alerta-neb.c
+AM_CPPFLAGS = ../include/nagios4

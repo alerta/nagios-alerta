@@ -156,7 +156,7 @@ CTAGS = ctags
 CSCOPE = cscope
 DIST_SUBDIRS = $(SUBDIRS)
 am__DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/config.h.in compile \
-	install-sh missing
+	depcomp install-sh missing
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -207,7 +207,7 @@ AUTOHEADER = ${SHELL} /Users/nsatterl/Projects/nagios3-alerta/missing autoheader
 AUTOMAKE = ${SHELL} /Users/nsatterl/Projects/nagios3-alerta/missing automake-1.15
 AWK = awk
 CC = gcc
-CCDEPMODE = depmode=none
+CCDEPMODE = depmode=gcc3
 CFLAGS = -g -O2
 CPP = gcc -E
 CPPFLAGS = 
@@ -240,6 +240,7 @@ PACKAGE_TARNAME = alerta-neb
 PACKAGE_URL = 
 PACKAGE_VERSION = 3.1.1
 PATH_SEPARATOR = :
+RANLIB = ranlib
 SET_MAKE = 
 SHELL = /bin/sh
 STRIP = 
