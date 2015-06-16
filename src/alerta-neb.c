@@ -2,11 +2,11 @@
  *
  * ALERTA-NEB.C
  *
+ * Copyright (C) 2015 Nick Satterly (http://alerta.io)
+ *
  *     $ indent -br -nut -l125 alerta-neb.c
  *
  *****************************************************************************/
-
-#include "../include/config.h"
 
 #include "../include/nebmodules.h"
 #include "../include/nebcallbacks.h"
@@ -23,11 +23,9 @@
 
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
-char *VERSION = "3.1.0";
+char *VERSION = "4.0.0";
 
 void *alerta_module_handle = NULL;
-
-int check_handler (int, void *);
 
 int debug = 0;
 char message[4096];
@@ -131,8 +129,7 @@ display_check_type (int check_type)
   }
 }
 
-int
-nebmodule_init (int flags, char *args, nebmodule * handle)
+int nebmodule_init (int flags, char *args, nebmodule *handle)
 {
   time_t clock;
   unsigned long interval;
@@ -142,7 +139,7 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
 
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_TITLE, "Nagios-Alerta Gateway");
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_AUTHOR, "Nick Satterly");
-  neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_COPYRIGHT, "Copyright (c) 2013 Nick Satterly");
+  neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_COPYRIGHT, "Copyright (c) 2015 Nick Satterly");
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_VERSION, VERSION);
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_LICENSE, "MIT License");
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_DESC,
@@ -185,8 +182,7 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
   return NEB_OK;
 }
 
-int
-nebmodule_deinit (int flags, int reason)
+int nebmodule_deinit (int flags, int reason)
 {
   curl_global_cleanup ();
 
@@ -198,8 +194,7 @@ nebmodule_deinit (int flags, int reason)
   return NEB_OK;
 }
 
-int
-check_handler (int event_type, void *data)
+int check_handler (int event_type, void *data)
 {
   nebstruct_host_check_data *host_chk_data = NULL;
   nebstruct_service_check_data *svc_chk_data = NULL;

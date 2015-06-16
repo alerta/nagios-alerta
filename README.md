@@ -25,17 +25,17 @@ Alerts
 
 To forward host and service check results to Alerta, modify `/etc/nagios3/nagios.cfg` as follows:
 ```
-broker_module=/usr/lib/nagios3/alerta-neb.o http://localhost:8080
+broker_module=/usr/local/lib/alerta-neb.o http://localhost:8080
 ```
 
 To provide the API key if authentication is enabled on the alerta server:
 ```
-broker_module=/usr/lib/nagios3/alerta-neb.o http://localhost:8080 key=INSERT_API_KEY_HERE
+broker_module=/usr/local/lib/alerta-neb.o http://localhost:8080 key=INSERT_API_KEY_HERE
 ```
 
 And to enable debug mode:
 ```
-broker_module=/usr/lib/nagios3/alerta-neb.o http://localhost:8080 debug=1
+broker_module=/usr/local/lib/alerta-neb.o http://localhost:8080 debug=1
 ```
 
 Heartbeats
@@ -75,4 +75,4 @@ define service {
 License
 -------
 
-Copyright (c) 2013 Nick Satterly. Available under the MIT License.
+Copyright (c) 2015 Nick Satterly. Available under the MIT License.
