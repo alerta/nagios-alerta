@@ -1,6 +1,8 @@
 Nagios-to-Alerta Gateway
 ========================
 
+[![Build Status](https://travis-ci.org/alerta/nagios-alerta.png)](https://travis-ci.org/alerta/nagios-alerta)
+
 Consolidate Nagios alerts from across multiple sites into a single "at-a-glance" console.
 
 Transform this ...
