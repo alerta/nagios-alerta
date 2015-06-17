@@ -1,3 +1,53 @@
+# Object files
 *.o
-*.c~
-*.dSYM
+*.ko
+*.obj
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Libraries
+*.lib
+*.a
+*.la
+*.lo
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+# Debug files
+*.dSYM/
+
+aclocal.m4
+autom4te.*
+
+Makefile
+Makefile.in
+config.h*
+config.status
+config.log
+
+compile
+configure
+install-sh
+depcomp
+missing
+stamp-h1
+ar-lib
+
+.deps
+
+.idea
