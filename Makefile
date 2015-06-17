@@ -11,6 +11,8 @@ nagios4:
 install:
 	cd $(SRC_MODULE) && $(MAKE) $@
 
+test: nagios3 nagios4
+
 clean:
 	cd $(SRC_MODULE) && $(MAKE) $@
 
