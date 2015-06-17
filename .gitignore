@@ -46,6 +46,7 @@ install-sh
 depcomp
 missing
 stamp-h1
+ar-lib
 
 .deps
 
