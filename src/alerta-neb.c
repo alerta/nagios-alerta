@@ -6,24 +6,26 @@
  *
  *****************************************************************************/
 
-#include "../include/config.h"
+#include <string.h>
 
-#include "../include/nebmodules.h"
-#include "../include/nebcallbacks.h"
+#include "config.h"
 
-#include "../include/nebstructs.h"
-#include "../include/neberrors.h"
-#include "../include/broker.h"
+#include "nebmodules.h"
+#include "nebcallbacks.h"
 
-#include "../include/config.h"
-#include "../include/common.h"
-#include "../include/nagios.h"
+#include "nebstructs.h"
+#include "neberrors.h"
+#include "broker.h"
+
+#include "config.h"
+#include "common.h"
+#include "nagios.h"
 
 #include <curl/curl.h>
 
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
-char *VERSION = "3.1.0";
+char *VERSION = "3.1.1";
 
 void *alerta_module_handle = NULL;
 
@@ -142,7 +144,7 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
 
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_TITLE, "Nagios-Alerta Gateway");
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_AUTHOR, "Nick Satterly");
-  neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_COPYRIGHT, "Copyright (c) 2013 Nick Satterly");
+  neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_COPYRIGHT, "Copyright (c) 2015 Nick Satterly");
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_VERSION, VERSION);
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_LICENSE, "MIT License");
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_DESC,
