@@ -1,6 +1,6 @@
 SRC_MODULE=./src
 
-all: nagios4
+all: nagios3
 
 nagios3:
 	cd $(SRC_MODULE) && $(MAKE) nagios3
