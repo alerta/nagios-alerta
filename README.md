@@ -3,7 +3,7 @@ Nagios-to-Alerta Gateway
 
 [![Build Status](https://travis-ci.org/alerta/nagios-alerta.png)](https://travis-ci.org/alerta/nagios-alerta)
 
-Consolidate Nagios alerts from across multiple sites into a single "at-a-glance" console.
+Consolidate Nagios alerts from across multiple sites into a single "at-a-glance" console. Nagios 3 and Nagios 4 are now supported.
 
 Transform this ...
 
@@ -13,14 +13,23 @@ Into this ...
 
 ![alerta](/docs/images/nagios3-alerta-v3.png?raw=true)
 
-Installation
+Installation (Nagios 3)
 ------------
 
-    $ git clone https://github.com/alerta/nagios3-alerta.git
-    $ cd nagios3-alerta
+    $ git clone https://github.com/alerta/nagios-alerta.git
+    $ cd nagios-alerta
     $ make
     $ sudo make install
     $ sudo service nagios3 restart
+
+Installation (Nagios 4)
+------------
+
+    $ git clone https://github.com/alerta/nagios-alerta.git
+    $ cd nagios-alerta
+    $ make nagios4
+    $ sudo make install
+    $ sudo service nagios restart
 
 Alerts
 ------
