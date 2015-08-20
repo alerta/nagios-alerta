@@ -140,7 +140,7 @@ replace_char(char *input_string, char old_char, char new_char)
   while(*c) {
     if(*c == old_char)
       *c = new_char;
-    ++c;
+    c++;
   }
   return input_string;
 }
@@ -341,9 +341,9 @@ check_handler (int event_type, void *data)
           write_to_all_logs ("[alerta] Service check received.", NSLOG_INFO_MESSAGE);
 
           // avoid broker JSON output
-          svc_chk_data->service_description = replace_char(svc_chk_data->service_description, ':', ' ');
-          svc_chk_data->output = replace_char(svc_chk_data->output, ':', ' ');
-          svc_chk_data->perf_data = replace_char(svc_chk_data->perf_data, ':', ' ');
+          const char *mod_service_description = replace_char(svc_chk_data->service_description, ':', ' ');
+          const char *mod_output = replace_char(svc_chk_data->output, ':', ' ');
+          const char *mod_perf_data = replace_char(svc_chk_data->perf_data, ':', ' ');
 
           sprintf (message,
                    "{"
@@ -362,15 +362,15 @@ check_handler (int event_type, void *data)
                    "}\n\r",
                    hostname, /* origin */
                    svc_chk_data->host_name, /* resource */
-                   svc_chk_data->service_description, /* event */
+                   mod_service_description, /* event */
                    "Nagios", /* group */
                    display_state (svc_chk_data->state), /* severity */
                    "Production",  /* environment */
                    "Platform", /* service */
                    display_check_type (svc_chk_data->check_type), /* tags */
-                   svc_chk_data->output, /* text */
+                   mod_output, /* text */
                    svc_chk_data->current_attempt, svc_chk_data->max_attempts, display_state_type (svc_chk_data->state_type), /* value */
-                   svc_chk_data->perf_data ? svc_chk_data->perf_data : "");
+                   mod_perf_data ? mod_perf_data : "");
 
           if (debug)
             write_to_all_logs (message, NSLOG_INFO_MESSAGE);
