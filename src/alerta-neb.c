@@ -133,7 +133,7 @@ display_check_type (int check_type)
   }
 }
 
-const char *
+char *
 replace_char(char *input_string, char old_char, char new_char)
 {
   char *c = input_string;
@@ -340,11 +340,6 @@ check_handler (int event_type, void *data)
 
           write_to_all_logs ("[alerta] Service check received.", NSLOG_INFO_MESSAGE);
 
-          // avoid broker JSON output
-          const char *mod_service_description = replace_char(svc_chk_data->service_description, ':', ' ');
-          const char *mod_output = replace_char(svc_chk_data->output, ':', ' ');
-          const char *mod_perf_data = replace_char(svc_chk_data->perf_data, ':', ' ');
-
           sprintf (message,
                    "{"
                    "\"origin\":\"nagios/%s\","
@@ -362,15 +357,18 @@ check_handler (int event_type, void *data)
                    "}\n\r",
                    hostname, /* origin */
                    svc_chk_data->host_name, /* resource */
-                   mod_service_description, /* event */
+                   svc_chk_data->service_description, /* event */
                    "Nagios", /* group */
                    display_state (svc_chk_data->state), /* severity */
                    "Production",  /* environment */
                    "Platform", /* service */
                    display_check_type (svc_chk_data->check_type), /* tags */
-                   mod_output, /* text */
+                   svc_chk_data->output, /* text */
                    svc_chk_data->current_attempt, svc_chk_data->max_attempts, display_state_type (svc_chk_data->state_type), /* value */
-                   mod_perf_data ? mod_perf_data : "");
+                   svc_chk_data->perf_data ? svc_chk_data->perf_data : "");
+
+          // avoid broker JSON output
+          char *message_mod = replace_char(message, ':', ' ');
 
           if (debug)
             write_to_all_logs (message, NSLOG_INFO_MESSAGE);
@@ -381,7 +379,7 @@ check_handler (int event_type, void *data)
             headers = curl_slist_append (headers, auth_header);
           curl_easy_setopt (curl, CURLOPT_URL, alert_url);
           curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
-          curl_easy_setopt (curl, CURLOPT_POSTFIELDS, message);
+          curl_easy_setopt (curl, CURLOPT_POSTFIELDS, message_mod);
           res = curl_easy_perform (curl);
 
           if (res != CURLE_OK) {
