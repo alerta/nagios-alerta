@@ -367,7 +367,7 @@ check_handler (int event_type, void *data)
                    svc_chk_data->current_attempt, svc_chk_data->max_attempts, display_state_type (svc_chk_data->state_type), /* value */
                    svc_chk_data->perf_data ? svc_chk_data->perf_data : "");
 
-          // avoid broker JSON output
+          // avoid broken JSON output
           char *message_mod = replace_char(message, '\\', ' ');
 
           if (debug)
