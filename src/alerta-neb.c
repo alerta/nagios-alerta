@@ -368,7 +368,7 @@ check_handler (int event_type, void *data)
                    svc_chk_data->perf_data ? svc_chk_data->perf_data : "");
 
           // avoid broker JSON output
-          char *message_mod = replace_char(message, ':', ' ');
+          char *message_mod = replace_char(message, '\\', ' ');
 
           if (debug)
             write_to_all_logs (message, NSLOG_INFO_MESSAGE);
