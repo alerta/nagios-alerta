@@ -133,6 +133,18 @@ display_check_type (int check_type)
   }
 }
 
+const char *
+replace_char(char *input_string, char old_char, char new_char)
+{
+  char *c = input_string;
+  while(*c) {
+    if(*c == old_char)
+      *c = new_char;
+    ++c;
+  }
+  return input_string;
+}
+
 int
 nebmodule_init (int flags, char *args, nebmodule * handle)
 {
@@ -223,7 +235,7 @@ check_handler (int event_type, void *data)
 
         sprintf (message,
                  "{"
-                 "\"origin\":\"nagios3/%s\","
+                 "\"origin\":\"nagios/%s\","
                  "\"resource\":\"%s\","
                  "\"event\":\"%s\","
                  "\"group\":\"%s\","
@@ -289,7 +301,7 @@ check_handler (int event_type, void *data)
 
           if (svc_chk_data->return_code == STATE_OK) {
             write_to_all_logs ("[alerta] Heartbeat service check OK.", NSLOG_INFO_MESSAGE);
-            sprintf (message, "{ \"origin\": \"nagios3/%s\", \"type\": \"Heartbeat\", \"tags\": [\"%s\"] }\n\r",
+            sprintf (message, "{ \"origin\": \"nagios/%s\", \"type\": \"Heartbeat\", \"tags\": [\"%s\"] }\n\r",
                      svc_chk_data->host_name, VERSION);
 
             if (debug)
@@ -328,9 +340,14 @@ check_handler (int event_type, void *data)
 
           write_to_all_logs ("[alerta] Service check received.", NSLOG_INFO_MESSAGE);
 
+          // avoid broker JSON output
+          svc_chk_data->service_description = replace_char(svc_chk_data->service_description, ':', ' ');
+          svc_chk_data->output = replace_char(svc_chk_data->output, ':', ' ');
+          svc_chk_data->perf_data = replace_char(svc_chk_data->perf_data, ':', ' ');
+
           sprintf (message,
                    "{"
-                   "\"origin\":\"nagios3/%s\","
+                   "\"origin\":\"nagios/%s\","
                    "\"resource\":\"%s\","
                    "\"event\":\"%s\","
                    "\"group\":\"%s\","
