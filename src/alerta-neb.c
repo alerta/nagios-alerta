@@ -25,7 +25,7 @@
 
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
-char *VERSION = "3.1.1";
+char *VERSION = "3.1.2";
 
 void *alerta_module_handle = NULL;
 
@@ -37,6 +37,7 @@ char hostname[1024];
 char alert_url[1024];
 char heartbeat_url[1024];
 char auth_header[1024];
+char environment[1024] = "Production";
 
 CURL *curl;
 CURLcode res;
@@ -170,6 +171,8 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
   while ((token = strsep (&args, " ")) != NULL) {
     if (strncasecmp (token, "http://", 7) == 0)
       strcpy (endpoint, token);
+    if (strncasecmp (token, "env=", 4) == 0)
+      strcpy (environment, token+4);
     if (strncasecmp (token, "key=", 4) == 0)
       strcpy (key, token+4);
     if (strncasecmp (token, "debug=1", 7) == 0)
@@ -253,7 +256,7 @@ check_handler (int event_type, void *data)
                  "Host Check", /* event */
                  "Nagios", /* group */
                  display_state (host_chk_data->state), /* severity */
-                 "Production",  /* environment */
+                 environment,  /* environment */
                  "Platform", /* service */
                  display_check_type (host_chk_data->check_type), /* tags */
                  host_chk_data->output, /* text */
@@ -360,7 +363,7 @@ check_handler (int event_type, void *data)
                    svc_chk_data->service_description, /* event */
                    "Nagios", /* group */
                    display_state (svc_chk_data->state), /* severity */
-                   "Production",  /* environment */
+                   environment,  /* environment */
                    "Platform", /* service */
                    display_check_type (svc_chk_data->check_type), /* tags */
                    svc_chk_data->output, /* text */
