@@ -34,7 +34,7 @@ Installation (Nagios 4)
 Alerts
 ------
 
-To forward host and service check results to Alerta, modify `/etc/nagios3/nagios.cfg` as follows:
+To forward host and service check results to Alerta, modify `/etc/nagios/nagios.cfg` as follows:
 ```
 broker_module=/usr/lib/nagios/alerta-neb.o http://localhost:8080
 ```
@@ -54,7 +54,7 @@ Heartbeats
 
 To configure the Nagios server to send regular heartbeats to Alerta to ensure that Nagios and the event broker are still forwarding alerts configure a dummy service check as follows:
 
-1. Define a heartbeat command and add it to `/etc/nagios3/commands.cfg`:
+1. Define a heartbeat command and add it to `/etc/nagios/commands.cfg`:
 ```
 define command{
         command_name    check_heartbeat
@@ -71,7 +71,7 @@ define hostgroup {
 }
 ```
 
-3. Define a Heartbeat service check to execute every minute and add it to `/etc/nagios3/conf.d/services_nagios2.cfg`:
+3. Define a Heartbeat service check to execute every minute and add it to `/etc/nagios/conf.d/services_nagios2.cfg`:
 ```
 define service {
         hostgroup_name                  nagios-servers
