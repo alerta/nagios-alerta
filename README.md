@@ -13,10 +13,25 @@ Into this ...
 
 ![alerta](/docs/images/nagios3-alerta-v3.png?raw=true)
 
+System Requirements
+------------
+
+You'll need the following system packages to Install nagios-alerta:
+
+    In RedHat/CentOS/Fedora:
+    ```
+    yum install -y git curl gcc make libcurl-devel
+    ```
+
+    In Debian/Ubuntu:
+    ```
+    apt-get install -y git curl gcc make libcurl-dev
+    ```
+
 Installation (Nagios 3)
 ------------
 
-    $ git clone https://github.com/alerta/nagios-alerta.git
+    $ git clone https://github.com/eduardohki/nagios-alerta.git
     $ cd nagios-alerta
     $ make
     $ sudo make install
@@ -25,7 +40,7 @@ Installation (Nagios 3)
 Installation (Nagios 4)
 ------------
 
-    $ git clone https://github.com/alerta/nagios-alerta.git
+    $ git clone https://github.com/eduardohki/nagios-alerta.git
     $ cd nagios-alerta
     $ make nagios4
     $ sudo make install
