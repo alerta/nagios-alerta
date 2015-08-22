@@ -18,15 +18,15 @@ System Requirements
 
 You'll need the following system packages to Install nagios-alerta:
 
-    In RedHat/CentOS/Fedora:
-    ```
-    yum install -y git curl gcc make libcurl-devel
-    ```
+In RedHat/CentOS/Fedora:
+```
+yum install -y git curl gcc make libcurl-devel
+```
 
-    In Debian/Ubuntu:
-    ```
-    apt-get install -y git curl gcc make libcurl-dev
-    ```
+In Debian/Ubuntu:
+```
+apt-get install -y git curl gcc make libcurl-dev
+```
 
 Installation (Nagios 3)
 ------------
