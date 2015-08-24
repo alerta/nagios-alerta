@@ -13,6 +13,21 @@ Into this ...
 
 ![alerta](/docs/images/nagios3-alerta-v3.png?raw=true)
 
+System Requirements
+------------
+
+You'll need the following system packages to Install nagios-alerta:
+
+In RedHat/CentOS/Fedora:
+```
+yum install -y git curl gcc make libcurl-devel
+```
+
+In Debian/Ubuntu:
+```
+apt-get install -y git curl gcc make libcurl-dev
+```
+
 Installation (Nagios 3)
 ------------
 
@@ -20,7 +35,7 @@ Installation (Nagios 3)
     $ cd nagios-alerta
     $ make
     $ sudo make install
-    $ sudo service nagios3 restart
+    $ sudo service nagios restart
 
 Installation (Nagios 4)
 ------------
@@ -34,19 +49,24 @@ Installation (Nagios 4)
 Alerts
 ------
 
-To forward host and service check results to Alerta, modify `/etc/nagios3/nagios.cfg` as follows:
+To forward host and service check results to Alerta, modify `/etc/nagios/nagios.cfg` as follows:
 ```
-broker_module=/usr/lib/nagios3/alerta-neb.o http://localhost:8080
+broker_module=/usr/lib/nagios/alerta-neb.o http://localhost:8080
+```
+
+To specify the environment name:
+```
+broker_module=/usr/lib/nagios/alerta-neb.o http://localhost:8080 env=ENV_NAME_HERE
 ```
 
 To provide the API key if authentication is enabled on the alerta server:
 ```
-broker_module=/usr/lib/nagios3/alerta-neb.o http://localhost:8080 key=INSERT_API_KEY_HERE
+broker_module=/usr/lib/nagios/alerta-neb.o http://localhost:8080 key=INSERT_API_KEY_HERE
 ```
 
 And to enable debug mode:
 ```
-broker_module=/usr/lib/nagios3/alerta-neb.o http://localhost:8080 debug=1
+broker_module=/usr/lib/nagios/alerta-neb.o http://localhost:8080 debug=1
 ```
 
 Heartbeats
@@ -54,7 +74,7 @@ Heartbeats
 
 To configure the Nagios server to send regular heartbeats to Alerta to ensure that Nagios and the event broker are still forwarding alerts configure a dummy service check as follows:
 
-1. Define a heartbeat command and add it to `/etc/nagios3/commands.cfg`:
+1. Define a heartbeat command and add it to `/etc/nagios/commands.cfg`:
 ```
 define command{
         command_name    check_heartbeat
@@ -71,7 +91,7 @@ define hostgroup {
 }
 ```
 
-3. Define a Heartbeat service check to execute every minute and add it to `/etc/nagios3/conf.d/services_nagios2.cfg`:
+3. Define a Heartbeat service check to execute every minute and add it to `/etc/nagios/conf.d/services_nagios2.cfg`:
 ```
 define service {
         hostgroup_name                  nagios-servers

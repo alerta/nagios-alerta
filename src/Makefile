@@ -16,9 +16,9 @@ nagios4: alerta-neb.c
 	$(CC) $(MOD_CFLAGS) $(CFLAGS) -I../include/nagios4 $(LIBS) -o alerta-neb.o alerta-neb.c $(MOD_LDFLAGS) $(LDFLAGS) $(LIBS)
 
 install:
-	install -m 0644 alerta-neb.o /usr/lib/nagios3
+	[ -d /usr/lib/nagios ] || mkdir /usr/lib/nagios
+	install -m 0644 alerta-neb.o /usr/lib/nagios
 
 clean:
 	rm -f core *.o
 	rm -f *~ *.*~
-
