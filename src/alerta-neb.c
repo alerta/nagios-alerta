@@ -225,6 +225,8 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
   while ((token = strsep (&args, " ")) != NULL) {
     if (strncasecmp (token, "http://", 7) == 0)
       strcpy (endpoint, token);
+    if (strncasecmp (token, "https://", 8) == 0)
+      strcpy (endpoint, token);
     if (strncasecmp (token, "env=", 4) == 0)
       strcpy (environment, token+4);
     if (strncasecmp (token, "key=", 4) == 0)
