@@ -19,9 +19,16 @@
 
 #include "config.h"
 #include "common.h"
+#include "locations.h"
 #include "nagios.h"
 
 #include <curl/curl.h>
+
+#define STATUS_NO_DATA             0
+#define STATUS_INFO_DATA           1
+#define STATUS_PROGRAM_DATA        2
+#define STATUS_HOST_DATA           3
+#define STATUS_SERVICE_DATA        4
 
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
@@ -144,6 +151,114 @@ display_downtime_type (int downtime_type)
   }
 }
 
+// char *
+// strip(char *str)
+// {
+//   char *p = &str[strlen(str)-1];
+//   while (isspace(*p)) --p;
+//   *(++p) = '\0';
+//   p = str;
+//   while (isspace(*p)) ++p;
+//   strcpy(str, p);
+//   return str;
+// }
+
+int
+is_downtime(char *hostname, char *service)
+{
+  char buf[MAX_INPUT_BUFFER];
+  char h[MAX_INPUT_BUFFER];
+  char s[MAX_INPUT_BUFFER];
+  FILE *file = NULL;
+  int data_type = STATUS_NO_DATA;
+  char *var = NULL;
+  char *val = NULL;
+  int downtime_depth = 0;
+
+  char msg[4098];
+
+  file = fopen("/var/cache/nagios3/status.dat", "r"); // FIXME - do not hardcode
+  if (file == NULL) {
+    write_to_all_logs ("[alerta] Could not read status.dat file.", NSLOG_RUNTIME_WARNING);
+    return 0;
+  }
+
+  while (fgets(buf, sizeof(buf), file)) {
+
+    if (buf[0] == '#' || buf[0] == '\x0')
+      continue;
+    strip(buf);
+
+    if (!strcmp(buf, "hoststatus {")) {
+      data_type = STATUS_HOST_DATA;
+    }
+    else if (!strcmp(buf, "servicestatus {")) {
+      data_type = STATUS_SERVICE_DATA;
+    }
+    else if (!strcmp(buf, "}")) {
+
+      sprintf(msg, "[is_downtime] host=%s svc=%s -> h=%s s=%s",
+        hostname, service ? service : "(none)", h ? h : "(none)", s ? s : "(none)");
+      write_to_all_logs (msg, NSLOG_INFO_MESSAGE);
+
+      if (data_type == STATUS_HOST_DATA && !service) {
+        if (!strcmp(h, hostname)) {
+          write_to_all_logs ("host found in status.dat", NSLOG_INFO_MESSAGE);
+          fclose(file);
+          return downtime_depth;
+        }
+      }
+
+      if (data_type == STATUS_SERVICE_DATA && service) {
+        if (!strcmp(h, hostname) && !strcmp(s, service)) {
+          write_to_all_logs ("host and service found in status.dat", NSLOG_INFO_MESSAGE);
+          fclose(file);
+          return downtime_depth;
+        }
+      }
+      data_type = STATUS_NO_DATA;
+    }
+
+    else if (data_type != STATUS_NO_DATA) {
+
+      var = strtok(buf, "=");
+      val = strtok(NULL, "\n");
+      if (val == NULL)
+        continue;
+
+      switch(data_type) {
+
+        case STATUS_HOST_DATA:
+          if (!strcmp(var, "host_name")) {
+            strcpy(h, val);
+            write_to_all_logs (h, NSLOG_INFO_MESSAGE);
+          }
+          if (!strcmp(var, "scheduled_downtime_depth"))
+            downtime_depth = atoi(val);
+          break;
+
+        case STATUS_SERVICE_DATA:
+          if (!strcmp(var, "host_name")) {
+            strcpy(h, val);
+            write_to_all_logs (h, NSLOG_INFO_MESSAGE);
+          }
+          if (!strcmp(var, "service_description")) {
+            strcpy(s, val);
+            write_to_all_logs (s, NSLOG_INFO_MESSAGE);
+          }
+          if (!strcmp(var, "scheduled_downtime_depth"))
+            downtime_depth = atoi(val);
+          break;
+
+        default:
+          break;
+      }
+    }
+  }
+  fclose(file);
+  return 0; /* host or service not in downtime period */
+}
+
 char *
 replace_char(char *input_string, char old_char, char new_char)
 {
@@ -157,7 +272,7 @@ replace_char(char *input_string, char old_char, char new_char)
 }
 
 int
-send_to_alerta(char *url, char *message)
+send_to_alerta(char *url, char *data)
 {
   CURL *curl;
   CURLcode res;
@@ -169,10 +284,10 @@ send_to_alerta(char *url, char *message)
     return NEB_ERROR;
   }
 
-  char *message_mod = replace_char(message, '\\', ' ');  // avoid broken JSON output
+  //char *message_mod = replace_char(data, '\\', ' ');  // avoid broken JSON output
 
   if (debug)
-    write_to_all_logs (message, NSLOG_INFO_MESSAGE);
+    write_to_all_logs (data, NSLOG_INFO_MESSAGE);
 
   struct curl_slist *headers = NULL;
   headers = curl_slist_append (headers, "Content-Type: application/json");
@@ -180,7 +295,7 @@ send_to_alerta(char *url, char *message)
     headers = curl_slist_append (headers, auth_header);
   curl_easy_setopt (curl, CURLOPT_URL, url);
   curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
-  curl_easy_setopt (curl, CURLOPT_POSTFIELDS, message_mod);
+  curl_easy_setopt (curl, CURLOPT_POSTFIELDS, data);
   res = curl_easy_perform (curl);
 
   if (res != CURLE_OK) {
@@ -191,9 +306,9 @@ send_to_alerta(char *url, char *message)
 
   curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
   sprintf (message, "[alerta] HTTP response status=%ld", status);
-  if (status != 200)
+  if (status != 201)
     write_to_all_logs (message, NSLOG_RUNTIME_WARNING);
-  else if (status == 200 && debug)
+  else if (status == 201 && debug)
     write_to_all_logs (message, NSLOG_INFO_MESSAGE);
 
   curl_easy_cleanup (curl);
@@ -316,7 +431,10 @@ check_handler (int event_type, void *data)
                  host_chk_data->current_attempt, host_chk_data->max_attempts, display_state_type (host_chk_data->state_type), /* value */
                  host_chk_data->perf_data ? host_chk_data->perf_data : ""); /* rawData */
 
-        send_to_alerta (alert_url, message);
+        if (!is_downtime(host_chk_data->host_name, NULL))
+          send_to_alerta (alert_url, message);
+        else
+          write_to_all_logs ("[alerta] Host in downtime period -- suppress alert.", NSLOG_INFO_MESSAGE);
       }
     }
 
@@ -373,7 +491,10 @@ check_handler (int event_type, void *data)
                    svc_chk_data->current_attempt, svc_chk_data->max_attempts, display_state_type (svc_chk_data->state_type), /* value */
                    svc_chk_data->perf_data ? svc_chk_data->perf_data : "");
 
-          send_to_alerta (alert_url, message);
+          if (!is_downtime(svc_chk_data->host_name, svc_chk_data->service_description))
+            send_to_alerta (alert_url, message);
+          else
+            write_to_all_logs ("[alerta] Service in downtime period -- suppress alert.", NSLOG_INFO_MESSAGE);
         }
       }
     }
