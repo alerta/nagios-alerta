@@ -21,6 +21,8 @@
 #include "common.h"
 #include "nagios.h"
 
+#include "uthash.h"
+
 #include <curl/curl.h>
 
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
@@ -38,6 +40,14 @@ char alert_url[1024];
 char heartbeat_url[1024];
 char auth_header[1024];
 char environment[1024] = "Production";
+
+typedef struct downtime_struct {
+    char key[2048];
+    int id;
+    UT_hash_handle hh;
+} downtime;
+
+downtime *downtimes = NULL;
 
 const char *
 display_evt_type (int type)
@@ -316,7 +326,13 @@ check_handler (int event_type, void *data)
                  host_chk_data->current_attempt, host_chk_data->max_attempts, display_state_type (host_chk_data->state_type), /* value */
                  host_chk_data->perf_data ? host_chk_data->perf_data : ""); /* rawData */
 
-        send_to_alerta (alert_url, message);
+        downtime *dt;
+        HASH_FIND_STR(downtimes, host_chk_data->host_name, dt);
+
+        if (dt)
+          write_to_all_logs ("[alerta] Host in downtime period -- suppress.", NSLOG_INFO_MESSAGE);
+        else
+          send_to_alerta (alert_url, message);
       }
     }
 
@@ -373,7 +389,15 @@ check_handler (int event_type, void *data)
                    svc_chk_data->current_attempt, svc_chk_data->max_attempts, display_state_type (svc_chk_data->state_type), /* value */
                    svc_chk_data->perf_data ? svc_chk_data->perf_data : "");
 
-          send_to_alerta (alert_url, message);
+          downtime *dt;
+          char key[2048];
+          sprintf(key, "%s~%s", svc_chk_data->host_name, svc_chk_data->service_description);
+          HASH_FIND_STR(downtimes, key, dt);
+
+          if (dt)
+            write_to_all_logs ("[alerta] Service in downtime period -- suppress.", NSLOG_INFO_MESSAGE);
+          else
+            send_to_alerta (alert_url, message);
         }
       }
     }
@@ -384,9 +408,21 @@ check_handler (int event_type, void *data)
 
     if ((downtime_data = (nebstruct_downtime_data *) data)) {
 
+      char key[2048];
+      downtime *dt = malloc(sizeof(downtime));
+      if (downtime_data->downtime_type == HOST_DOWNTIME) {
+        sprintf(key, "%s", downtime_data->host_name);
+      } else if (downtime_data->downtime_type == SERVICE_DOWNTIME) {
+        sprintf(key, "%s~%s", downtime_data->host_name, downtime_data->service_description);
+      }
+      strcpy(dt->key, key);
+      dt->id = downtime_data->downtime_id;
+
       if (downtime_data->type == NEBTYPE_DOWNTIME_START) {
 
         write_to_all_logs ("[alerta] Downtime started.", NSLOG_INFO_MESSAGE);
+
+        HASH_ADD_STR(downtimes, key, dt);
 
         sprintf (message,
                  "{"
@@ -423,6 +459,13 @@ check_handler (int event_type, void *data)
       if (downtime_data->type == NEBTYPE_DOWNTIME_STOP) {
 
         write_to_all_logs ("[alerta] Downtime stopped.", NSLOG_INFO_MESSAGE);
+
+        downtime *dt;
+        HASH_FIND_STR(downtimes, key, dt);
+        if (dt) {
+          HASH_DEL(downtimes, dt);
+          free(dt);
+        }
 
         sprintf (message,
                  "{"
