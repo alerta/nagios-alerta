@@ -21,11 +21,13 @@
 #include "common.h"
 #include "nagios.h"
 
+#include "uthash.h"
+
 #include <curl/curl.h>
 
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
-char *VERSION = "3.1.2";
+char *VERSION = "3.2.0";
 
 void *alerta_module_handle = NULL;
 
@@ -39,8 +41,13 @@ char heartbeat_url[1024];
 char auth_header[1024];
 char environment[1024] = "Production";
 
-CURL *curl;
-CURLcode res;
+typedef struct downtime_struct {
+    char key[2048];
+    int id;
+    UT_hash_handle hh;
+} downtime;
+
+downtime *downtimes = NULL;
 
 const char *
 display_evt_type (int type)
@@ -134,6 +141,19 @@ display_check_type (int check_type)
   }
 }
 
+const char *
+display_downtime_type (int downtime_type)
+{
+  switch (downtime_type) {
+  case SERVICE_DOWNTIME:
+    return ("Service Downtime");
+  case HOST_DOWNTIME:
+    return ("Host Downtime");
+  default:
+    return ("Host or Service Downtime");
+  }
+}
+
 char *
 replace_char(char *input_string, char old_char, char new_char)
 {
@@ -144,6 +164,50 @@ replace_char(char *input_string, char old_char, char new_char)
     c++;
   }
   return input_string;
+}
+
+int
+send_to_alerta(char *url, char *message)
+{
+  CURL *curl;
+  CURLcode res;
+  long status;
+
+  curl = curl_easy_init ();
+
+  if (!curl) {
+    return NEB_ERROR;
+  }
+
+  char *message_mod = replace_char(message, '\\', ' ');  // avoid broken JSON output
+
+  if (debug)
+    write_to_all_logs (message, NSLOG_INFO_MESSAGE);
+
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append (headers, "Content-Type: application/json");
+  if (strlen(auth_header))
+    headers = curl_slist_append (headers, auth_header);
+  curl_easy_setopt (curl, CURLOPT_URL, url);
+  curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
+  curl_easy_setopt (curl, CURLOPT_POSTFIELDS, message_mod);
+  res = curl_easy_perform (curl);
+
+  if (res != CURLE_OK) {
+    sprintf (message, "[alerta] curl_easy_perform() failed: %s", curl_easy_strerror (res));
+    write_to_all_logs (message, NSLOG_RUNTIME_ERROR);
+    return res;
+  }
+
+  curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+  sprintf (message, "[alerta] HTTP response status=%ld", status);
+  if (status != 200)
+    write_to_all_logs (message, NSLOG_RUNTIME_WARNING);
+  else if (status == 200 && debug)
+    write_to_all_logs (message, NSLOG_INFO_MESSAGE);
+
+  curl_easy_cleanup (curl);
+  return status;
 }
 
 int
@@ -197,8 +261,9 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
 
   neb_register_callback (NEBCALLBACK_HOST_CHECK_DATA, alerta_module_handle, 0, check_handler);
   neb_register_callback (NEBCALLBACK_SERVICE_CHECK_DATA, alerta_module_handle, 0, check_handler);
+  neb_register_callback (NEBCALLBACK_DOWNTIME_DATA, alerta_module_handle, 0, check_handler);
 
-  sprintf (message, "[alerta] Forward service and host checks to %s", endpoint);
+  sprintf (message, "[alerta] Forward service and host checks and downtime to %s", endpoint);
   write_to_all_logs (message, NSLOG_INFO_MESSAGE);
 
   return NEB_OK;
@@ -211,6 +276,7 @@ nebmodule_deinit (int flags, int reason)
 
   neb_deregister_callback (NEBCALLBACK_HOST_CHECK_DATA, check_handler);
   neb_deregister_callback (NEBCALLBACK_SERVICE_CHECK_DATA, check_handler);
+  neb_deregister_callback (NEBCALLBACK_DOWNTIME_DATA, check_handler);
 
   write_to_all_logs ("NEB callbacks for host and service checks successfully de-registered. Bye.", NSLOG_INFO_MESSAGE);
 
@@ -222,12 +288,7 @@ check_handler (int event_type, void *data)
 {
   nebstruct_host_check_data *host_chk_data = NULL;
   nebstruct_service_check_data *svc_chk_data = NULL;
-
-  curl = curl_easy_init ();
-
-  if (!curl) {
-    return NEB_ERROR;
-  }
+  nebstruct_downtime_data *downtime_data = NULL;
 
   switch (event_type) {
   case NEBCALLBACK_HOST_CHECK_DATA:
@@ -265,32 +326,13 @@ check_handler (int event_type, void *data)
                  host_chk_data->current_attempt, host_chk_data->max_attempts, display_state_type (host_chk_data->state_type), /* value */
                  host_chk_data->perf_data ? host_chk_data->perf_data : ""); /* rawData */
 
-        if (debug)
-          write_to_all_logs (message, NSLOG_INFO_MESSAGE);
+        downtime *dt;
+        HASH_FIND_STR(downtimes, host_chk_data->host_name, dt);
 
-        struct curl_slist *headers = NULL;
-        headers = curl_slist_append (headers, "Content-Type: application/json");
-        if (strlen(auth_header))
-          headers = curl_slist_append (headers, auth_header);
-        curl_easy_setopt (curl, CURLOPT_URL, alert_url);
-        curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
-        curl_easy_setopt (curl, CURLOPT_POSTFIELDS, message);
-        res = curl_easy_perform (curl);
-
-        if (res != CURLE_OK) {
-          sprintf (message, "[alerta] curl_easy_perform() failed: %s", curl_easy_strerror (res));
-          write_to_all_logs (message, NSLOG_RUNTIME_ERROR);
-        }
-
-        long status;
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
-        sprintf (message, "[alerta] HTTP response status=%ld", status);
-        if (status != 200)
-          write_to_all_logs (message, NSLOG_RUNTIME_WARNING);
-        else if (status == 200 && debug)
-          write_to_all_logs (message, NSLOG_INFO_MESSAGE);
-
-        curl_easy_cleanup (curl);
+        if (dt)
+          write_to_all_logs ("[alerta] Host in downtime period -- suppress.", NSLOG_INFO_MESSAGE);
+        else
+          send_to_alerta (alert_url, message);
       }
     }
 
@@ -309,32 +351,7 @@ check_handler (int event_type, void *data)
             sprintf (message, "{ \"origin\": \"nagios/%s\", \"type\": \"Heartbeat\", \"tags\": [\"%s\"] }\n\r",
                      svc_chk_data->host_name, VERSION);
 
-            if (debug)
-              write_to_all_logs (message, NSLOG_INFO_MESSAGE);
-
-            struct curl_slist *headers = NULL;
-            headers = curl_slist_append (headers, "Content-Type: application/json");
-            if (strlen(auth_header))
-              headers = curl_slist_append (headers, auth_header);
-            curl_easy_setopt (curl, CURLOPT_URL, heartbeat_url);
-            curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
-            curl_easy_setopt (curl, CURLOPT_POSTFIELDS, message);
-            res = curl_easy_perform (curl);
-
-            if (res != CURLE_OK) {
-              sprintf (message, "[alerta] curl_easy_perform() failed: %s", curl_easy_strerror (res));
-              write_to_all_logs (message, NSLOG_RUNTIME_ERROR);
-            }
-            long status;
-            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
-            sprintf (message, "[alerta] HTTP response status=%ld", status);
-            if (status != 200)
-              write_to_all_logs (message, NSLOG_RUNTIME_WARNING);
-            else if (status == 200 && debug)
-              write_to_all_logs (message, NSLOG_INFO_MESSAGE);
-
-            curl_easy_cleanup (curl);
-
+            send_to_alerta (heartbeat_url, message);
           }
           else {
             write_to_all_logs ("[alerta] Heartbeat service check failed.", NSLOG_RUNTIME_WARNING);
@@ -372,36 +389,114 @@ check_handler (int event_type, void *data)
                    svc_chk_data->current_attempt, svc_chk_data->max_attempts, display_state_type (svc_chk_data->state_type), /* value */
                    svc_chk_data->perf_data ? svc_chk_data->perf_data : "");
 
-          // avoid broken JSON output
-          char *message_mod = replace_char(message, '\\', ' ');
+          downtime *dt;
+          char key[2048];
+          sprintf(key, "%s~%s", svc_chk_data->host_name, svc_chk_data->service_description);
+          HASH_FIND_STR(downtimes, key, dt);
 
-          if (debug)
-            write_to_all_logs (message, NSLOG_INFO_MESSAGE);
-
-          struct curl_slist *headers = NULL;
-          headers = curl_slist_append (headers, "Content-Type: application/json");
-          if (strlen(auth_header))
-            headers = curl_slist_append (headers, auth_header);
-          curl_easy_setopt (curl, CURLOPT_URL, alert_url);
-          curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
-          curl_easy_setopt (curl, CURLOPT_POSTFIELDS, message_mod);
-          res = curl_easy_perform (curl);
-
-          if (res != CURLE_OK) {
-            sprintf (message, "[alerta] curl_easy_perform() failed: %s", curl_easy_strerror (res));
-            write_to_all_logs (message, NSLOG_RUNTIME_ERROR);
-          }
-
-          long status;
-          curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
-          sprintf (message, "[alerta] HTTP response status=%ld", status);
-          if (status != 200)
-            write_to_all_logs (message, NSLOG_RUNTIME_WARNING);
-          else if (status == 200 && debug)
-            write_to_all_logs (message, NSLOG_INFO_MESSAGE);
-
-          curl_easy_cleanup (curl);
+          if (dt)
+            write_to_all_logs ("[alerta] Service in downtime period -- suppress.", NSLOG_INFO_MESSAGE);
+          else
+            send_to_alerta (alert_url, message);
         }
+      }
+    }
+
+    break;
+
+  case NEBCALLBACK_DOWNTIME_DATA:
+
+    if ((downtime_data = (nebstruct_downtime_data *) data)) {
+
+      char key[2048];
+      downtime *dt = malloc(sizeof(downtime));
+      if (downtime_data->downtime_type == HOST_DOWNTIME) {
+        sprintf(key, "%s", downtime_data->host_name);
+      } else if (downtime_data->downtime_type == SERVICE_DOWNTIME) {
+        sprintf(key, "%s~%s", downtime_data->host_name, downtime_data->service_description);
+      }
+      strcpy(dt->key, key);
+      dt->id = downtime_data->downtime_id;
+
+      if (downtime_data->type == NEBTYPE_DOWNTIME_START) {
+
+        write_to_all_logs ("[alerta] Downtime started.", NSLOG_INFO_MESSAGE);
+
+        HASH_ADD_STR(downtimes, key, dt);
+
+        sprintf (message,
+                 "{"
+                 "\"origin\":\"nagios/%s\","
+                 "\"resource\":\"%s\","
+                 "\"event\":\"%s\","
+                 "\"group\":\"%s\","
+                 "\"severity\":\"%s\","
+                 "\"environment\":\"%s\","
+                 "\"service\":[\"%s\"],"
+                 "\"tags\":[\"downtime=%s\"],"
+                 "\"text\":\"DOWNTIME STARTED (%lus) - %s\","
+                 "\"value\":\"id=%lu\","
+                 "\"type\":\"%s\","
+                 "\"rawData\":\"%s;%lu;%lu;%d;%lu;%lu;%s;%s\""
+                 "}\n\r",
+                 hostname, /* origin */
+                 downtime_data->host_name, /* resource */
+                 downtime_data->service_description ? downtime_data->service_description : "Host Check", /* event */
+                 "Nagios", /* group */
+                 "informational", /* severity */
+                 environment, /* environment */
+                 "Platform", /* service */
+                 display_downtime_type (downtime_data->downtime_type), /* tags */
+                 downtime_data->duration, downtime_data->comment_data, /* text */
+                 downtime_data->downtime_id, /* value */
+                 downtime_data->downtime_type == HOST_DOWNTIME ? "nagiosHostAlert" : "nagiosServiceAlert",
+                 downtime_data->host_name, downtime_data->start_time, downtime_data->end_time, downtime_data->fixed, downtime_data->triggered_by, downtime_data->duration, downtime_data->author_name, downtime_data->comment_data
+                 );
+
+        send_to_alerta (alert_url, message);
+      }
+
+      if (downtime_data->type == NEBTYPE_DOWNTIME_STOP) {
+
+        write_to_all_logs ("[alerta] Downtime stopped.", NSLOG_INFO_MESSAGE);
+
+        downtime *dt;
+        HASH_FIND_STR(downtimes, key, dt);
+        if (dt) {
+          HASH_DEL(downtimes, dt);
+          free(dt);
+        }
+
+        sprintf (message,
+                 "{"
+                 "\"origin\":\"nagios/%s\","
+                 "\"resource\":\"%s\","
+                 "\"event\":\"%s\","
+                 "\"group\":\"%s\","
+                 "\"severity\":\"%s\","
+                 "\"environment\":\"%s\","
+                 "\"service\":[\"%s\"],"
+                 "\"tags\":[\"downtime=%s\"],"
+                 "\"text\":\"DOWNTIME %s - %s\","
+                 "\"value\":\"id=%lu\","
+                 "\"type\":\"%s\","
+                 "\"rawData\":\"%s;%lu;%lu;%d;%lu;%lu;%s;%s\""
+                 "}\n\r",
+                 hostname, /* origin */
+                 downtime_data->host_name, /* resource */
+                 downtime_data->service_description ? downtime_data->service_description : "Host Check", /* event */
+                 "Nagios", /* group */
+                 "normal", /* severity */
+                 environment, /* environment */
+                 "Platform", /* service */
+                 display_downtime_type (downtime_data->downtime_type), /* tags */
+                 downtime_data->attr == NEBATTR_DOWNTIME_STOP_CANCELLED ? "CANCELLED" : "STOPPED", downtime_data->comment_data, /* text */
+                 downtime_data->downtime_id, /* value */
+                 downtime_data->downtime_type == HOST_DOWNTIME ? "nagiosHostAlert" : "nagiosServiceAlert",
+                 downtime_data->host_name, downtime_data->start_time, downtime_data->end_time, downtime_data->fixed, downtime_data->triggered_by, downtime_data->duration, downtime_data->author_name, downtime_data->comment_data
+                 );
+
+        send_to_alerta (alert_url, message);
       }
     }
 
