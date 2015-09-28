@@ -367,6 +367,15 @@ nebmodule_deinit (int flags, int reason)
   neb_deregister_callback (NEBCALLBACK_SERVICE_CHECK_DATA, check_handler);
   neb_deregister_callback (NEBCALLBACK_DOWNTIME_DATA, check_handler);
 
+  if (hosts_f) {
+    hosts_filter *prev = NULL;
+    while (hosts_f) {
+      if (prev)
+	free(prev);
+      prev = hosts_f;
+      hosts_f = hosts_f->next;
+    }
+  }
   write_to_all_logs ("NEB callbacks for host and service checks successfully de-registered. Bye.", NSLOG_INFO_MESSAGE);
 
   return NEB_OK;
