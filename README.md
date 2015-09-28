@@ -64,6 +64,16 @@ To provide the API key if authentication is enabled on the alerta server:
 broker_module=/usr/lib/nagios/alerta-neb.o http://localhost:8080 key=INSERT_API_KEY_HERE
 ```
 
+To send alerts only for specific hosts (file must contains list of hosts separated by newline), default no filter:
+```
+broker_module=/usr/lib/nagios/alerta-neb.o http://localhost:8080 hosts=/path/to/host.txt
+```
+
+To filter alerts via the function check_if_alert (for now do not send alerts if acknlodged, flapping or if state is ok and previous state was ok), default no filter
+```
+broker_module=/usr/lib/nagios/alerta-neb.o http://localhost:8080 filter=1
+```
+
 And to enable debug mode:
 ```
 broker_module=/usr/lib/nagios/alerta-neb.o http://localhost:8080 debug=1
