@@ -7,6 +7,8 @@
  *****************************************************************************/
 
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "config.h"
 
@@ -20,10 +22,12 @@
 #include "config.h"
 #include "common.h"
 #include "nagios.h"
+#include "objects.h"
 
 #include "uthash.h"
 
 #include <curl/curl.h>
+
 
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
@@ -34,6 +38,7 @@ void *alerta_module_handle = NULL;
 int check_handler (int, void *);
 
 int debug = 0;
+int filter = 0;
 char message[4096];
 char hostname[1024];
 char alert_url[1024];
@@ -46,6 +51,13 @@ typedef struct downtime_struct {
     int id;
     UT_hash_handle hh;
 } downtime;
+
+typedef struct hosts_filter {
+  char			host[256];
+  struct hosts_filter	*next;
+} hosts_filter;
+
+hosts_filter *hosts_f = NULL;
 
 downtime *downtimes = NULL;
 
@@ -167,16 +179,36 @@ replace_char(char *input_string, char old_char, char new_char)
 }
 
 int
-send_to_alerta(char *url, char *message)
+send_to_alerta(char *url, char *message, char *host)
 {
   CURL *curl;
   CURLcode res;
   long status;
+  char h_filtered = 1;
+  char msg[4096];
 
   curl = curl_easy_init ();
 
   if (!curl) {
     return NEB_ERROR;
+  }
+
+  if (host && hosts_f && strcmp(host, "nagios")) {
+    hosts_filter *h = hosts_f;
+    while (h) {
+      if (!strcmp(h->host, host)) {
+	h_filtered = 0;
+	break;
+      }
+      h = h->next;
+    }
+    if (h_filtered) {
+      if (debug) {
+	sprintf(msg, "Host %s is not in the host list", host);
+	write_to_all_logs (msg, NSLOG_INFO_MESSAGE);
+      }
+      return (-1);
+    }
   }
 
   char *message_mod = replace_char(message, '\\', ' ');  // avoid broken JSON output
@@ -211,6 +243,45 @@ send_to_alerta(char *url, char *message)
 }
 
 int
+load_hosts_filter (char *hosts)
+{
+    FILE *file;
+
+    if ((file = fopen(hosts, "r")) != NULL)
+      {
+	char host[256];
+	hosts_filter *prev = NULL;
+	hosts_filter *first = NULL;
+
+	while (fgets(host, sizeof(host), file) != NULL)
+	  {
+	    if (prev == NULL)
+	      first = hosts_f = malloc(sizeof(hosts_filter));
+	    else {
+	      hosts_f = malloc(sizeof(hosts_filter));
+	      prev->next = hosts_f;
+	    }
+	    strcpy(hosts_f->host, host);
+	    hosts_f->host[strlen(host) - 1] = '\0';
+	    prev = hosts_f;
+	    if (debug) {
+	      sprintf(message, "[alerta] add host %s as a valid host", hosts_f->host);
+	      write_to_all_logs (message, NSLOG_INFO_MESSAGE);
+	    }
+	  }
+	hosts_f->next = NULL;
+	hosts_f = first;
+	fclose(file);
+      }
+    else {
+      sprintf(message, "[alerta] Can not open hosts filter file %s", hosts);
+      write_to_all_logs (message, NSLOG_INFO_MESSAGE);
+      return (-1);
+    }
+    return (0);
+}
+
+int
 nebmodule_init (int flags, char *args, nebmodule * handle)
 {
   time_t clock;
@@ -231,7 +302,9 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
 
   char endpoint[1024] = "";
   char key[1024] = "";
+  char hosts[1024] = "";
   char *token;
+
   while ((token = strsep (&args, " ")) != NULL) {
     if (strncasecmp (token, "http://", 7) == 0)
       strcpy (endpoint, token);
@@ -241,8 +314,24 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
       strcpy (environment, token+4);
     if (strncasecmp (token, "key=", 4) == 0)
       strcpy (key, token+4);
+    if (strncasecmp (token, "hosts=", 6) == 0)
+      strcpy (hosts, token+6);
+    if (strncasecmp (token, "filter=1", 7) == 0)
+      filter = 1;
     if (strncasecmp (token, "debug=1", 7) == 0)
       debug = 1;
+  }
+  if (strlen(hosts)) {
+    sprintf(message, "[alerta] Getting hosts filter info from %s", hosts );
+    write_to_all_logs (message, NSLOG_INFO_MESSAGE);
+    if (load_hosts_filter(hosts))
+      return (NEB_ERROR);
+    hosts_filter *h = hosts_f;
+    while (h) {
+      sprintf(message, "[alerta] loaded >%s<", h->host );
+      write_to_all_logs (message, NSLOG_INFO_MESSAGE);
+      h = h->next;
+    }
   }
   if (strlen(endpoint)) {
     sprintf (alert_url, "%s/alert", endpoint);
@@ -283,6 +372,35 @@ nebmodule_deinit (int flags, int reason)
   return NEB_OK;
 }
 
+
+int check_if_alert(int type, void *p)
+{
+  int ack, state = 0;
+
+  if (type == NEBCALLBACK_HOST_CHECK_DATA) {
+    host *h = p;
+    ack = (h->problem_has_been_acknowledged || h->is_flapping);
+    state = (h->current_state == STATE_OK && h->last_state == STATE_OK);
+  }
+  else if (type == NEBCALLBACK_SERVICE_CHECK_DATA) {
+    service *s = p;
+    ack = (s->problem_has_been_acknowledged || s->is_flapping);
+    state = (s->current_state == STATE_OK && s->last_state == STATE_OK);
+  }
+
+  if (ack) {
+    if (debug)
+      write_to_all_logs ("[alerta] Breaking because host service is flapping or has been acknoledged.", NSLOG_INFO_MESSAGE);
+    return 0;
+  }
+  if (state) {
+    if (debug)
+      write_to_all_logs ("[alerta] Breaking because host service is ok and previous state was ok.", NSLOG_INFO_MESSAGE);
+    return 0;
+  }
+  return 1;
+}
+
 int
 check_handler (int event_type, void *data)
 {
@@ -297,7 +415,11 @@ check_handler (int event_type, void *data)
 
       if (host_chk_data->type == NEBTYPE_HOSTCHECK_PROCESSED) {
 
-        write_to_all_logs ("[alerta] Host check received.", NSLOG_INFO_MESSAGE);
+	if (debug)
+	  write_to_all_logs ("[alerta] Host check received.", NSLOG_INFO_MESSAGE);
+
+	if (!check_if_alert(event_type, (host *)host_chk_data->object_ptr) && filter)
+	  break;
 
         sprintf (message,
                  "{"
@@ -332,7 +454,7 @@ check_handler (int event_type, void *data)
         if (dt)
           write_to_all_logs ("[alerta] Host in downtime period -- suppress.", NSLOG_INFO_MESSAGE);
         else
-          send_to_alerta (alert_url, message);
+          send_to_alerta (alert_url, message, host_chk_data->host_name);
       }
     }
 
@@ -351,7 +473,7 @@ check_handler (int event_type, void *data)
             sprintf (message, "{ \"origin\": \"nagios/%s\", \"type\": \"Heartbeat\", \"tags\": [\"%s\"] }\n\r",
                      svc_chk_data->host_name, VERSION);
 
-            send_to_alerta (heartbeat_url, message);
+            send_to_alerta (heartbeat_url, message, "nagios");
           }
           else {
             write_to_all_logs ("[alerta] Heartbeat service check failed.", NSLOG_RUNTIME_WARNING);
@@ -360,7 +482,13 @@ check_handler (int event_type, void *data)
         }
         else {
 
-          write_to_all_logs ("[alerta] Service check received.", NSLOG_INFO_MESSAGE);
+	  if (debug) {
+	    write_to_all_logs ("[alerta] Service check received.", NSLOG_INFO_MESSAGE);
+	    write_to_all_logs (message, NSLOG_INFO_MESSAGE);
+	  }
+
+	  if (!check_if_alert(event_type, (service *)svc_chk_data->object_ptr) && filter)
+	    break;
 
           sprintf (message,
                    "{"
@@ -397,7 +525,7 @@ check_handler (int event_type, void *data)
           if (dt)
             write_to_all_logs ("[alerta] Service in downtime period -- suppress.", NSLOG_INFO_MESSAGE);
           else
-            send_to_alerta (alert_url, message);
+            send_to_alerta (alert_url, message, svc_chk_data->host_name);
         }
       }
     }
@@ -453,7 +581,7 @@ check_handler (int event_type, void *data)
                  downtime_data->host_name, downtime_data->start_time, downtime_data->end_time, downtime_data->fixed, downtime_data->triggered_by, downtime_data->duration, downtime_data->author_name, downtime_data->comment_data
                  );
 
-        send_to_alerta (alert_url, message);
+        send_to_alerta (alert_url, message, downtime_data->host_name);
       }
 
       if (downtime_data->type == NEBTYPE_DOWNTIME_STOP) {
@@ -496,7 +624,7 @@ check_handler (int event_type, void *data)
                  downtime_data->host_name, downtime_data->start_time, downtime_data->end_time, downtime_data->fixed, downtime_data->triggered_by, downtime_data->duration, downtime_data->author_name, downtime_data->comment_data
                  );
 
-        send_to_alerta (alert_url, message);
+        send_to_alerta (alert_url, message, downtime_data->host_name);
       }
     }
 

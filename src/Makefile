@@ -10,7 +10,7 @@ STRIP=/usr/bin/strip
 CP=@CP@
 
 nagios3: alerta-neb.c
-	$(CC) $(MOD_CFLAGS) $(CFLAGS) -I../include -I../include/nagios3 $(LIBS) -o alerta-neb.o alerta-neb.c $(MOD_LDFLAGS) $(LDFLAGS) $(LIBS)
+	$(CC) $(MOD_CFLAGS) $(CFLAGS) -D NSCORE -I../include -I../include/nagios3 $(LIBS) -o alerta-neb.o alerta-neb.c $(MOD_LDFLAGS) $(LDFLAGS) $(LIBS)
 
 nagios4: alerta-neb.c
 	$(CC) $(MOD_CFLAGS) $(CFLAGS) -I../include -I../include/nagios4 $(LIBS) -o alerta-neb.o alerta-neb.c $(MOD_LDFLAGS) $(LDFLAGS) $(LIBS)
