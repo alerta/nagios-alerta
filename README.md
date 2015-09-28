@@ -69,7 +69,7 @@ To send alerts only for specific hosts (file must contains list of hosts separat
 broker_module=/usr/lib/nagios/alerta-neb.o http://localhost:8080 hosts=/path/to/host.txt
 ```
 
-To filter alerts via the function check_if_alert (for now do not send alerts if acknlodged, flapping or if state is ok and previous state was ok), default no filter
+To filter alerts via the function check_if_alert (for now do not send alerts if acknowledged, flapping or if state is ok and previous state was ok), default no filter:
 ```
 broker_module=/usr/lib/nagios/alerta-neb.o http://localhost:8080 filter=1
 ```
