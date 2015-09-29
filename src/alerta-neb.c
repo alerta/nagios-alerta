@@ -384,27 +384,32 @@ nebmodule_deinit (int flags, int reason)
 
 int check_if_alert(int type, void *p)
 {
-  int ack, state = 0;
+  int ack, state, attempt, flap = 0;
 
   if (type == NEBCALLBACK_HOST_CHECK_DATA) {
-    host *h = p;
-    ack = (h->problem_has_been_acknowledged || h->is_flapping);
+    nebstruct_host_check_data *data = p;
+    host *h = data->object_ptr;
+    ack = h->problem_has_been_acknowledged;
+    flap = h->is_flapping;
     state = (h->current_state == STATE_OK && h->last_state == STATE_OK);
+    if (h->current_state != STATE_OK)
+      attempt = data->max_attempts - data->current_attempt;
   }
   else if (type == NEBCALLBACK_SERVICE_CHECK_DATA) {
-    service *s = p;
-    ack = (s->problem_has_been_acknowledged || s->is_flapping);
+    nebstruct_service_check_data *data = p;
+    service *s = data->object_ptr;
+    ack = s->problem_has_been_acknowledged;
+    flap = s->is_flapping;
     state = (s->current_state == STATE_OK && s->last_state == STATE_OK);
+    if (s->current_state != STATE_OK)
+      attempt = data->max_attempts - data->current_attempt;
   }
 
-  if (ack) {
-    if (debug)
-      write_to_all_logs ("[alerta] Breaking because host service is flapping or has been acknoledged.", NSLOG_INFO_MESSAGE);
-    return 0;
-  }
-  if (state) {
-    if (debug)
-      write_to_all_logs ("[alerta] Breaking because host service is ok and previous state was ok.", NSLOG_INFO_MESSAGE);
+  if (ack || flap || state || attempt) {
+    if (debug) {
+      sprintf(message, "[alerta] Do not send alert to alerta because it has been filtered acknowledged = %d, flapping = %d, double_ok: %d, attempt_bef_alert = %d", ack, flap, state, attempt);
+      write_to_all_logs(message, NSLOG_INFO_MESSAGE);
+    }
     return 0;
   }
   return 1;
@@ -427,7 +432,7 @@ check_handler (int event_type, void *data)
 	if (debug)
 	  write_to_all_logs ("[alerta] Host check received.", NSLOG_INFO_MESSAGE);
 
-	if (!check_if_alert(event_type, (host *)host_chk_data->object_ptr) && filter)
+	if (!check_if_alert(event_type, host_chk_data) && filter)
 	  break;
 
         sprintf (message,
@@ -496,7 +501,7 @@ check_handler (int event_type, void *data)
 	    write_to_all_logs (message, NSLOG_INFO_MESSAGE);
 	  }
 
-	  if (!check_if_alert(event_type, (service *)svc_chk_data->object_ptr) && filter)
+	  if (!check_if_alert(event_type, svc_chk_data) && filter)
 	    break;
 
           sprintf (message,
