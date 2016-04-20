@@ -27,7 +27,7 @@
 
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
-char *VERSION = "3.2.0";
+char *VERSION = "3.3.0";
 
 void *alerta_module_handle = NULL;
 
@@ -290,6 +290,10 @@ check_handler (int event_type, void *data)
   nebstruct_service_check_data *svc_chk_data = NULL;
   nebstruct_downtime_data *downtime_data = NULL;
 
+  char cov_environment[1024] = "";
+  char cov_service[1024] = "";
+  customvariablesmember *customvar = NULL;
+
   switch (event_type) {
   case NEBCALLBACK_HOST_CHECK_DATA:
 
@@ -298,6 +302,18 @@ check_handler (int event_type, void *data)
       if (host_chk_data->type == NEBTYPE_HOSTCHECK_PROCESSED) {
 
         write_to_all_logs ("[alerta] Host check received.", NSLOG_INFO_MESSAGE);
+
+        host *host_object = host_chk_data->object_ptr;
+        customvar = host_object->custom_variables;
+
+        for (customvariablesmember *cvar = customvar; cvar != NULL; cvar = cvar->next) {
+          if (!strcmp (cvar->variable_name, "ENVIRONMENT")) {
+            sprintf (cov_environment, "%s", cvar->variable_value);
+          }
+          if (!strcmp (cvar->variable_name, "SERVICE")) {
+            sprintf (cov_service, "%s", cvar->variable_value);
+          }
+        }
 
         sprintf (message,
                  "{"
@@ -319,8 +335,8 @@ check_handler (int event_type, void *data)
                  "Host Check", /* event */
                  "Nagios", /* group */
                  display_state (host_chk_data->state), /* severity */
-                 environment,  /* environment */
-                 "Platform", /* service */
+                 strcmp(cov_environment, "") ? cov_environment : environment, /* environment */
+                 strcmp(cov_service, "") ? cov_service : "Platform", /* service */
                  display_check_type (host_chk_data->check_type), /* tags */
                  host_chk_data->output, /* text */
                  host_chk_data->current_attempt, host_chk_data->max_attempts, display_state_type (host_chk_data->state_type), /* value */
@@ -362,6 +378,18 @@ check_handler (int event_type, void *data)
 
           write_to_all_logs ("[alerta] Service check received.", NSLOG_INFO_MESSAGE);
 
+          service *service_object = svc_chk_data->object_ptr;
+          customvar = service_object->custom_variables;
+
+          for (customvariablesmember *cvar = customvar; cvar != NULL; cvar = cvar->next) {
+            if (!strcmp (cvar->variable_name, "ENVIRONMENT")) {
+              sprintf (cov_environment, "%s", cvar->variable_value);
+            }
+            if (!strcmp (cvar->variable_name, "SERVICE")) {
+              sprintf (cov_service, "%s", cvar->variable_value);
+            }
+          }
+
           sprintf (message,
                    "{"
                    "\"origin\":\"nagios/%s\","
@@ -382,8 +410,8 @@ check_handler (int event_type, void *data)
                    svc_chk_data->service_description, /* event */
                    "Nagios", /* group */
                    display_state (svc_chk_data->state), /* severity */
-                   environment,  /* environment */
-                   "Platform", /* service */
+                   strcmp(cov_environment, "") ? cov_environment : environment, /* environment */
+                   strcmp(cov_service, "") ? cov_service : "Platform", /* service */
                    display_check_type (svc_chk_data->check_type), /* tags */
                    svc_chk_data->output, /* text */
                    svc_chk_data->current_attempt, svc_chk_data->max_attempts, display_state_type (svc_chk_data->state_type), /* value */
@@ -444,8 +472,8 @@ check_handler (int event_type, void *data)
                  downtime_data->service_description ? downtime_data->service_description : "Host Check", /* event */
                  "Nagios", /* group */
                  "informational", /* severity */
-                 environment, /* environment */
-                 "Platform", /* service */
+                 strcmp(cov_environment, "") ? cov_environment : environment, /* environment */
+                 strcmp(cov_service, "") ? cov_service : "Platform", /* service */
                  display_downtime_type (downtime_data->downtime_type), /* tags */
                  downtime_data->duration, downtime_data->comment_data, /* text */
                  downtime_data->downtime_id, /* value */
@@ -487,8 +515,8 @@ check_handler (int event_type, void *data)
                  downtime_data->service_description ? downtime_data->service_description : "Host Check", /* event */
                  "Nagios", /* group */
                  "normal", /* severity */
-                 environment, /* environment */
-                 "Platform", /* service */
+                 strcmp(cov_environment, "") ? cov_environment : environment, /* environment */
+                 strcmp(cov_service, "") ? cov_service : "Platform", /* service */
                  display_downtime_type (downtime_data->downtime_type), /* tags */
                  downtime_data->attr == NEBATTR_DOWNTIME_STOP_CANCELLED ? "CANCELLED" : "STOPPED", downtime_data->comment_data, /* text */
                  downtime_data->downtime_id, /* value */
