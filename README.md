@@ -69,6 +69,8 @@ And to enable debug mode:
 broker_module=/usr/lib/nagios/alerta-neb.o http://localhost:8080 debug=1
 ```
 
+**Note:** The default `environment` is `Production` and the default `service` is `Platform`.
+
 Setting Environment & Service Per-Check
 ---------------------------------------
 
