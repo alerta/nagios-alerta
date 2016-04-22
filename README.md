@@ -69,6 +69,34 @@ And to enable debug mode:
 broker_module=/usr/lib/nagios/alerta-neb.o http://localhost:8080 debug=1
 ```
 
+Setting Environment & Service Per-Check
+---------------------------------------
+
+Use [custom object variables](https://assets.nagios.com/downloads/nagioscore/docs/nagioscore/3/en/customobjectvars.html)
+`_Environment` and `_Service` to set environment and service on a per-check basis:
+
+```
+define host{
+        use                     generic-host            ; Name of host template to use
+        host_name               localhost
+        alias                   localhost
+        address                 127.0.0.1
+        _Environment            Development
+        _Service                Network
+        }
+```
+
+```
+define service{
+        use                             generic-service         ; Name of service template to use
+        host_name                       localhost
+        service_description             Total Processes
+        _Environment                    Production
+        _Service                        Web
+        check_command                   check_procs!250!400
+        }
+```
+
 Heartbeats
 ----------
 
@@ -106,4 +134,4 @@ define service {
 License
 -------
 
-Copyright (c) 2013 Nick Satterly. Available under the MIT License.
+Copyright (c) 2013-2016 Nick Satterly. Available under the MIT License.
