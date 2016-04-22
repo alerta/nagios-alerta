@@ -305,8 +305,9 @@ check_handler (int event_type, void *data)
 
         host *host_object = host_chk_data->object_ptr;
         customvar = host_object->custom_variables;
+        customvariablesmember *cvar;
 
-        for (customvariablesmember *cvar = customvar; cvar != NULL; cvar = cvar->next) {
+        for (cvar = customvar; cvar != NULL; cvar = cvar->next) {
           if (!strcmp (cvar->variable_name, "ENVIRONMENT")) {
             sprintf (cov_environment, "%s", cvar->variable_value);
           }
@@ -380,8 +381,9 @@ check_handler (int event_type, void *data)
 
           service *service_object = svc_chk_data->object_ptr;
           customvar = service_object->custom_variables;
+          customvariablesmember *cvar;
 
-          for (customvariablesmember *cvar = customvar; cvar != NULL; cvar = cvar->next) {
+          for (cvar = customvar; cvar != NULL; cvar = cvar->next) {
             if (!strcmp (cvar->variable_name, "ENVIRONMENT")) {
               sprintf (cov_environment, "%s", cvar->variable_value);
             }
