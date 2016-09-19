@@ -27,7 +27,7 @@
 
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
-char *VERSION = "3.3.0";
+char *VERSION = "3.3.1";
 
 void *alerta_module_handle = NULL;
 
