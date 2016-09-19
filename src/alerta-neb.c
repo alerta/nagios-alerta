@@ -155,15 +155,25 @@ display_downtime_type (int downtime_type)
 }
 
 char *
-replace_char(char *input_string, char old_char, char new_char)
-{
-  char *c = input_string;
-  while(*c) {
-    if(*c == old_char)
-      *c = new_char;
-    c++;
-  }
-  return input_string;
+replace_char(const char *input_string, char old_char, const char *new_string) {
+    int count = 0;
+    const char *t;
+    for(t=input_string; *t; t++)
+        count += (*t == old_char);
+
+    size_t rlen = strlen(new_string);
+    char *output_string = malloc(strlen(input_string) + (rlen-1)*count + 1);
+    char *ptr = output_string;
+    for(t=input_string; *t; t++) {
+        if(*t == old_char) {
+            memcpy(ptr, new_string, rlen);
+            ptr += rlen;
+        } else {
+            *ptr++ = *t;
+        }
+    }
+    *ptr = 0;
+    return output_string;
 }
 
 int
@@ -179,7 +189,7 @@ send_to_alerta(char *url, char *message)
     return NEB_ERROR;
   }
 
-  char *message_mod = replace_char(message, '\\', ' ');  // avoid broken JSON output
+  char *message_mod = replace_char(message, '\\', " ");  // avoid broken JSON output
 
   if (debug)
     write_to_all_logs (message, NSLOG_INFO_MESSAGE);
@@ -337,7 +347,7 @@ check_handler (int event_type, void *data)
                  "Nagios", /* group */
                  display_state (host_chk_data->state), /* severity */
                  strcmp(cov_environment, "") ? cov_environment : environment, /* environment */
-                 strcmp(cov_service, "") ? cov_service : "Platform", /* service */
+                 strcmp(cov_service, "") ? replace_char(cov_service, ',', "\",\"") : "Platform", /* service */
                  display_check_type (host_chk_data->check_type), /* tags */
                  host_chk_data->output, /* text */
                  host_chk_data->current_attempt, host_chk_data->max_attempts, display_state_type (host_chk_data->state_type), /* value */
@@ -413,7 +423,7 @@ check_handler (int event_type, void *data)
                    "Nagios", /* group */
                    display_state (svc_chk_data->state), /* severity */
                    strcmp(cov_environment, "") ? cov_environment : environment, /* environment */
-                   strcmp(cov_service, "") ? cov_service : "Platform", /* service */
+                   strcmp(cov_service, "") ? replace_char(cov_service, ',', "\",\"") : "Platform", /* service */
                    display_check_type (svc_chk_data->check_type), /* tags */
                    svc_chk_data->output, /* text */
                    svc_chk_data->current_attempt, svc_chk_data->max_attempts, display_state_type (svc_chk_data->state_type), /* value */
@@ -475,7 +485,7 @@ check_handler (int event_type, void *data)
                  "Nagios", /* group */
                  "informational", /* severity */
                  strcmp(cov_environment, "") ? cov_environment : environment, /* environment */
-                 strcmp(cov_service, "") ? cov_service : "Platform", /* service */
+                 strcmp(cov_service, "") ? replace_char(cov_service, ',', "\",\"") : "Platform", /* service */
                  display_downtime_type (downtime_data->downtime_type), /* tags */
                  downtime_data->duration, downtime_data->comment_data, /* text */
                  downtime_data->downtime_id, /* value */
@@ -518,7 +528,7 @@ check_handler (int event_type, void *data)
                  "Nagios", /* group */
                  "normal", /* severity */
                  strcmp(cov_environment, "") ? cov_environment : environment, /* environment */
-                 strcmp(cov_service, "") ? cov_service : "Platform", /* service */
+                 strcmp(cov_service, "") ? replace_char(cov_service, ',', "\",\"") : "Platform", /* service */
                  display_downtime_type (downtime_data->downtime_type), /* tags */
                  downtime_data->attr == NEBATTR_DOWNTIME_STOP_CANCELLED ? "CANCELLED" : "STOPPED", downtime_data->comment_data, /* text */
                  downtime_data->downtime_id, /* value */
