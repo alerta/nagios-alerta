@@ -41,6 +41,8 @@ char heartbeat_url[1024];
 char auth_header[1024];
 char environment[1024] = "Production";
 
+static CURL *curl = NULL;
+
 typedef struct downtime_struct {
     char key[2048];
     int id;
@@ -179,11 +181,14 @@ replace_char(const char *input_string, char old_char, const char *new_string) {
 int
 send_to_alerta(char *url, char *message)
 {
-  CURL *curl;
   CURLcode res;
   long status;
 
-  curl = curl_easy_init ();
+  if (curl == NULL) {
+      curl = curl_easy_init ();
+  } else {
+      curl_easy_reset (curl);
+  }
 
   if (!curl) {
     return NEB_ERROR;
@@ -216,7 +221,6 @@ send_to_alerta(char *url, char *message)
   else if (status == 200 && debug)
     write_to_all_logs (message, NSLOG_INFO_MESSAGE);
 
-  curl_easy_cleanup (curl);
   return status;
 }
 
