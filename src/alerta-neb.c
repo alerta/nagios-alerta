@@ -27,7 +27,7 @@
 
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
-char *VERSION = "3.3.2";
+char *VERSION = "3.3.3";
 
 void *alerta_module_handle = NULL;
 
@@ -40,6 +40,7 @@ char alert_url[1024];
 char heartbeat_url[1024];
 char auth_header[1024];
 char environment[1024] = "Production";
+char hard_states_only = 0;
 
 static CURL *curl = NULL;
 
@@ -235,7 +236,7 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
 
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_TITLE, "Nagios-Alerta Gateway");
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_AUTHOR, "Nick Satterly");
-  neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_COPYRIGHT, "Copyright (c) 2015 Nick Satterly");
+  neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_COPYRIGHT, "Copyright (c) 2015-2017 Nick Satterly");
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_VERSION, VERSION);
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_LICENSE, "MIT License");
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_DESC,
@@ -257,6 +258,8 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
       strcpy (key, token+4);
     if (strncasecmp (token, "debug=1", 7) == 0)
       debug = 1;
+    if (strncasecmp (token, "hard_only=1", 11) == 0)
+      hard_states_only = 1;
   }
   if (strlen(endpoint)) {
     sprintf (alert_url, "%s/alert", endpoint);
@@ -271,13 +274,18 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
   if (debug)
     write_to_all_logs ("[alerta] debug is on", NSLOG_INFO_MESSAGE);
 
+  if (hard_states_only)
+    write_to_all_logs ("[alerta] states=Hard (only)", NSLOG_INFO_MESSAGE);
+  else
+    write_to_all_logs ("[alerta] states=Hard/Soft", NSLOG_INFO_MESSAGE);
+
   curl_global_init (CURL_GLOBAL_ALL);
 
   neb_register_callback (NEBCALLBACK_HOST_CHECK_DATA, alerta_module_handle, 0, check_handler);
   neb_register_callback (NEBCALLBACK_SERVICE_CHECK_DATA, alerta_module_handle, 0, check_handler);
   neb_register_callback (NEBCALLBACK_DOWNTIME_DATA, alerta_module_handle, 0, check_handler);
 
-  sprintf (message, "[alerta] Forward service and host checks and downtime to %s", endpoint);
+  sprintf (message, "[alerta] Forward service checks, host checks and downtime to %s", endpoint);
   write_to_all_logs (message, NSLOG_INFO_MESSAGE);
 
   return NEB_OK;
@@ -363,7 +371,10 @@ check_handler (int event_type, void *data)
         if (dt)
           write_to_all_logs ("[alerta] Host in downtime period -- suppress.", NSLOG_INFO_MESSAGE);
         else
-          send_to_alerta (alert_url, message);
+            if (hard_states_only && host_chk_data->state_type == SOFT_STATE)
+              write_to_all_logs ("[alerta] Host in Soft state -- suppress.", NSLOG_INFO_MESSAGE);
+            else
+              send_to_alerta (alert_url, message);
       }
     }
 
@@ -441,7 +452,10 @@ check_handler (int event_type, void *data)
           if (dt)
             write_to_all_logs ("[alerta] Service in downtime period -- suppress.", NSLOG_INFO_MESSAGE);
           else
-            send_to_alerta (alert_url, message);
+            if (hard_states_only && svc_chk_data->state_type == SOFT_STATE)
+              write_to_all_logs ("[alerta] Service in Soft state -- suppress.", NSLOG_INFO_MESSAGE);
+            else
+              send_to_alerta (alert_url, message);
         }
       }
     }
