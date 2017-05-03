@@ -27,13 +27,14 @@
 
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
-char *VERSION = "3.3.3";
+char *VERSION = "3.4.0";
 
 void *alerta_module_handle = NULL;
 
 int check_handler (int, void *);
 
 int debug = 0;
+
 char message[4096];
 char hostname[1024];
 char alert_url[1024];
@@ -180,6 +181,37 @@ replace_char(const char *input_string, char old_char, const char *new_string) {
 }
 
 int
+log_debug(char *message)
+{
+  if (debug)
+    write_to_all_logs (message, NSLOG_INFO_MESSAGE);
+}
+
+int
+log_info(char *message)
+{
+  write_to_all_logs (message, NSLOG_INFO_MESSAGE);
+}
+
+int
+log_warning(char *message)
+{
+  write_to_all_logs (message, NSLOG_RUNTIME_WARNING);
+}
+
+int
+log_config(char *message)
+{
+  write_to_all_logs (message, NSLOG_CONFIG_ERROR);
+}
+
+int
+log_error(char *message)
+{
+  write_to_all_logs(message, NSLOG_RUNTIME_ERROR);
+}
+
+int
 send_to_alerta(char *url, char *message)
 {
   CURLcode res;
@@ -197,8 +229,7 @@ send_to_alerta(char *url, char *message)
 
   char *message_mod = replace_char(message, '\\', " ");  // avoid broken JSON output
 
-  if (debug)
-    write_to_all_logs (message, NSLOG_INFO_MESSAGE);
+  log_debug (message);
 
   struct curl_slist *headers = NULL;
   headers = curl_slist_append (headers, "Content-Type: application/json");
@@ -211,17 +242,27 @@ send_to_alerta(char *url, char *message)
 
   if (res != CURLE_OK) {
     sprintf (message, "[alerta] curl_easy_perform() failed: %s", curl_easy_strerror (res));
-    write_to_all_logs (message, NSLOG_RUNTIME_ERROR);
+    log_error (message);
     return res;
   }
-
   curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
-  sprintf (message, "[alerta] HTTP response status=%ld", status);
-  if (status != 200)
-    write_to_all_logs (message, NSLOG_RUNTIME_WARNING);
-  else if (status == 200 && debug)
-    write_to_all_logs (message, NSLOG_INFO_MESSAGE);
 
+  switch (status) {
+  case 200:
+  case 201:
+    sprintf (message, "[alerta] HTTP response OK (status=%ld)", status);
+    log_debug (message);
+    break;
+  case 401:
+  case 403:
+    sprintf (message, "[alerta] HTTP auth error. API key not configured? (status=%ld)", status);
+    log_config (message);
+    break;
+  default:
+    sprintf (message, "[alerta] HTTP server error (status=%ld)", status);
+    log_error (message);
+    break;
+  }
   return status;
 }
 
@@ -242,7 +283,8 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_DESC,
                        "Nagios Event Broker module that forwards Nagios events to Alerta");
 
-  write_to_all_logs ("[alerta] Initialising Nagios-Alerta Gateway module", NSLOG_INFO_MESSAGE);
+  sprintf (message, "[alerta] Initialising Nagios-Alerta Gateway module, v%s", VERSION);
+  log_info (message);
 
   char endpoint[1024] = "";
   char key[1024] = "";
@@ -267,17 +309,19 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
     if (strlen(key))
       sprintf (auth_header, "Authorization: Key %s", key);
   } else {
-    write_to_all_logs ("[alerta] API endpoint not configured", NSLOG_CONFIG_ERROR);
+    log_config ("[alerta] API endpoint not configured.");
     exit(1);
   }
 
   if (debug)
-    write_to_all_logs ("[alerta] debug is on", NSLOG_INFO_MESSAGE);
+    log_info ("[alerta] debug is on");
+  else
+    log_info ("[alerta] debug is off");
 
   if (hard_states_only)
-    write_to_all_logs ("[alerta] states=Hard (only)", NSLOG_INFO_MESSAGE);
+    log_info ("[alerta] states=Hard (only)");
   else
-    write_to_all_logs ("[alerta] states=Hard/Soft", NSLOG_INFO_MESSAGE);
+    log_info ("[alerta] states=Hard/Soft");
 
   curl_global_init (CURL_GLOBAL_ALL);
 
@@ -286,7 +330,7 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
   neb_register_callback (NEBCALLBACK_DOWNTIME_DATA, alerta_module_handle, 0, check_handler);
 
   sprintf (message, "[alerta] Forward service checks, host checks and downtime to %s", endpoint);
-  write_to_all_logs (message, NSLOG_INFO_MESSAGE);
+  log_info (message);
 
   return NEB_OK;
 }
@@ -300,7 +344,7 @@ nebmodule_deinit (int flags, int reason)
   neb_deregister_callback (NEBCALLBACK_SERVICE_CHECK_DATA, check_handler);
   neb_deregister_callback (NEBCALLBACK_DOWNTIME_DATA, check_handler);
 
-  write_to_all_logs ("NEB callbacks for host and service checks successfully de-registered. Bye.", NSLOG_INFO_MESSAGE);
+  log_info ("[alerta] NEB callbacks for host and service checks successfully de-registered. Bye.");
 
   return NEB_OK;
 }
@@ -323,7 +367,7 @@ check_handler (int event_type, void *data)
 
       if (host_chk_data->type == NEBTYPE_HOSTCHECK_PROCESSED) {
 
-        write_to_all_logs ("[alerta] Host check received.", NSLOG_INFO_MESSAGE);
+        log_debug ("[alerta] Host check received.");
 
         host *host_object = host_chk_data->object_ptr;
         customvar = host_object->custom_variables;
@@ -369,10 +413,10 @@ check_handler (int event_type, void *data)
         HASH_FIND_STR(downtimes, host_chk_data->host_name, dt);
 
         if (dt)
-          write_to_all_logs ("[alerta] Host in downtime period -- suppress.", NSLOG_INFO_MESSAGE);
+          log_debug ("[alerta] Host in downtime period -- suppress.");
         else
             if (hard_states_only && host_chk_data->state_type == SOFT_STATE)
-              write_to_all_logs ("[alerta] Host in Soft state -- suppress.", NSLOG_INFO_MESSAGE);
+              log_debug ("[alerta] Host in Soft state -- suppress.");
             else
               send_to_alerta (alert_url, message);
       }
@@ -389,20 +433,19 @@ check_handler (int event_type, void *data)
         if (!strcmp (svc_chk_data->service_description, "Heartbeat")) {
 
           if (svc_chk_data->return_code == STATE_OK) {
-            write_to_all_logs ("[alerta] Heartbeat service check OK.", NSLOG_INFO_MESSAGE);
+            log_debug ("[alerta] Heartbeat service check OK.");
             sprintf (message, "{ \"origin\": \"nagios/%s\", \"type\": \"Heartbeat\", \"tags\": [\"%s\"] }\n\r",
                      svc_chk_data->host_name, VERSION);
 
             send_to_alerta (heartbeat_url, message);
           }
           else {
-            write_to_all_logs ("[alerta] Heartbeat service check failed.", NSLOG_RUNTIME_WARNING);
+            log_warning ("[alerta] Heartbeat service check failed.");
           }
-
         }
         else {
 
-          write_to_all_logs ("[alerta] Service check received.", NSLOG_INFO_MESSAGE);
+          log_debug ("[alerta] Service check received.");
 
           service *service_object = svc_chk_data->object_ptr;
           customvar = service_object->custom_variables;
@@ -450,10 +493,10 @@ check_handler (int event_type, void *data)
           HASH_FIND_STR(downtimes, key, dt);
 
           if (dt)
-            write_to_all_logs ("[alerta] Service in downtime period -- suppress.", NSLOG_INFO_MESSAGE);
+            log_debug ("[alerta] Service in downtime period -- suppress.");
           else
             if (hard_states_only && svc_chk_data->state_type == SOFT_STATE)
-              write_to_all_logs ("[alerta] Service in Soft state -- suppress.", NSLOG_INFO_MESSAGE);
+              log_debug ("[alerta] Service in Soft state -- suppress.");
             else
               send_to_alerta (alert_url, message);
         }
@@ -478,7 +521,7 @@ check_handler (int event_type, void *data)
 
       if (downtime_data->type == NEBTYPE_DOWNTIME_START) {
 
-        write_to_all_logs ("[alerta] Downtime started.", NSLOG_INFO_MESSAGE);
+        log_debug ("[alerta] Downtime started.");
 
         HASH_ADD_STR(downtimes, key, dt);
 
@@ -516,7 +559,7 @@ check_handler (int event_type, void *data)
 
       if (downtime_data->type == NEBTYPE_DOWNTIME_STOP) {
 
-        write_to_all_logs ("[alerta] Downtime stopped.", NSLOG_INFO_MESSAGE);
+        log_debug ("[alerta] Downtime stopped.");
 
         downtime *dt;
         HASH_FIND_STR(downtimes, key, dt);
@@ -561,7 +604,7 @@ check_handler (int event_type, void *data)
     break;
 
   default:
-    write_to_all_logs ("[alerta] ERROR: Callback triggered for unregistered event!", NSLOG_RUNTIME_WARNING);
+    log_warning ("[alerta] ERROR: Callback triggered for unregistered event!");
     break;
   }
 
