@@ -27,7 +27,7 @@
 
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
-char *VERSION = "3.4.0";
+char *VERSION = "3.4.1";
 
 void *alerta_module_handle = NULL;
 
@@ -253,10 +253,21 @@ send_to_alerta(char *url, char *message)
     sprintf (message, "[alerta] HTTP response OK (status=%ld)", status);
     log_debug (message);
     break;
+  case 202:
+    sprintf (message, "[alerta] HTTP request ignored during blackout period. (status=%ld)", status);
+    log_warning (message);
+    break;
   case 401:
-  case 403:
     sprintf (message, "[alerta] HTTP auth error. API key not configured? (status=%ld)", status);
     log_config (message);
+    break;
+  case 403:
+    sprintf (message, "[alerta] HTTP request forbidden or rejected. (status=%ld)", status);
+    log_config (message);
+    break;
+  case 429:
+    sprintf (message, "[alerta] HTTP request rate limited. Too many alerts? (status=%ld)", status);
+    log_error (message);
     break;
   default:
     sprintf (message, "[alerta] HTTP server error (status=%ld)", status);
