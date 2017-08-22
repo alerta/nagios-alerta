@@ -239,6 +239,7 @@ send_to_alerta(char *url, char *message)
   curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
   curl_easy_setopt (curl, CURLOPT_POSTFIELDS, message_mod);
   res = curl_easy_perform (curl);
+  curl_slist_free_all(headers);
 
   if (res != CURLE_OK) {
     sprintf (message, "[alerta] curl_easy_perform() failed: %s", curl_easy_strerror (res));
