@@ -35,18 +35,27 @@ int check_handler (int, void *);
 
 int debug = 0;
 
-char message[4096];
-char hostname[1024];
-char alert_url[1024];
-char heartbeat_url[1024];
-char auth_header[1024];
-char environment[1024] = "Production";
+#define MESSAGE_SIZE        32768   //was 4096
+#define LONGDESC_SIZE       MESSAGE_SIZE - 2048
+#define HOSTNAME_SIZE       2048    //was 1024
+#define URL_SIZE            2048    //was 1024
+#define AUTH_HEADER_SIZE    1024    //was 1024
+#define ENVIRONMENT_SIZE    1024    //was 1024
+#define KEY_SIZE            2048    //was 2048
+
+char message[MESSAGE_SIZE];
+char long_desc[LONGDESC_SIZE];
+char hostname[HOSTNAME_SIZE];
+char alert_url[URL_SIZE];
+char heartbeat_url[URL_SIZE];
+char auth_header[AUTH_HEADER_SIZE];
+char environment[ENVIRONMENT_SIZE] = "Production";
 char hard_states_only = 0;
 
 static CURL *curl = NULL;
 
 typedef struct downtime_struct {
-    char key[2048];
+    char key[KEY_SIZE];
     int id;
     UT_hash_handle hh;
 } downtime;
@@ -180,32 +189,32 @@ replace_char(const char *input_string, char old_char, const char *new_string) {
     return output_string;
 }
 
-int
+void 
 log_debug(char *message)
 {
   if (debug)
     write_to_all_logs (message, NSLOG_INFO_MESSAGE);
 }
 
-int
+void
 log_info(char *message)
 {
   write_to_all_logs (message, NSLOG_INFO_MESSAGE);
 }
 
-int
+void
 log_warning(char *message)
 {
   write_to_all_logs (message, NSLOG_RUNTIME_WARNING);
 }
 
-int
+void
 log_config(char *message)
 {
   write_to_all_logs (message, NSLOG_CONFIG_ERROR);
 }
 
-int
+void
 log_error(char *message)
 {
   write_to_all_logs(message, NSLOG_RUNTIME_ERROR);
@@ -227,12 +236,14 @@ send_to_alerta(char *url, char *message)
     return NEB_ERROR;
   }
 
-  char *message_mod = replace_char(message, '\\', " ");  // avoid broken JSON output
+  char *message_mod = replace_char(message, '\\', "\\\\");  // kind of escaping 
 
-  log_debug (message);
+  log_debug (message_mod);
 
   struct curl_slist *headers = NULL;
   headers = curl_slist_append (headers, "Content-Type: application/json");
+  headers = curl_slist_append (headers, "Expect:"); //disable 100-continue expectation
+
   if (strlen(auth_header))
     headers = curl_slist_append (headers, auth_header);
   curl_easy_setopt (curl, CURLOPT_URL, url);
@@ -243,7 +254,7 @@ send_to_alerta(char *url, char *message)
   free (message_mod);
 
   if (res != CURLE_OK) {
-    sprintf (message, "[alerta] curl_easy_perform() failed: %s", curl_easy_strerror (res));
+    snprintf (message, MESSAGE_SIZE, "[alerta] curl_easy_perform() failed: %s", curl_easy_strerror (res));
     log_error (message);
     return res;
   }
@@ -252,27 +263,27 @@ send_to_alerta(char *url, char *message)
   switch (status) {
   case 200:
   case 201:
-    sprintf (message, "[alerta] HTTP response OK (status=%ld)", status);
+    snprintf (message, MESSAGE_SIZE, "[alerta] HTTP response OK (status=%ld)", status);
     log_debug (message);
     break;
   case 202:
-    sprintf (message, "[alerta] HTTP request ignored during blackout period. (status=%ld)", status);
+    snprintf (message, MESSAGE_SIZE, "[alerta] HTTP request ignored during blackout period. (status=%ld)", status);
     log_warning (message);
     break;
   case 401:
-    sprintf (message, "[alerta] HTTP auth error. API key not configured? (status=%ld)", status);
+    snprintf (message, MESSAGE_SIZE, "[alerta] HTTP auth error. API key not configured? (status=%ld)", status);
     log_config (message);
     break;
   case 403:
-    sprintf (message, "[alerta] HTTP request forbidden or rejected. (status=%ld)", status);
+    snprintf (message, MESSAGE_SIZE, "[alerta] HTTP request forbidden or rejected. (status=%ld)", status);
     log_config (message);
     break;
   case 429:
-    sprintf (message, "[alerta] HTTP request rate limited. Too many alerts? (status=%ld)", status);
+    snprintf (message, MESSAGE_SIZE, "[alerta] HTTP request rate limited. Too many alerts? (status=%ld)", status);
     log_error (message);
     break;
   default:
-    sprintf (message, "[alerta] HTTP server error (status=%ld)", status);
+    snprintf (message, MESSAGE_SIZE, "[alerta] HTTP server error (status=%ld)", status);
     log_error (message);
     break;
   }
@@ -282,8 +293,6 @@ send_to_alerta(char *url, char *message)
 int
 nebmodule_init (int flags, char *args, nebmodule * handle)
 {
-  time_t clock;
-  unsigned long interval;
   gethostname (hostname, 1023);
 
   alerta_module_handle = handle;        /* save the neb module handle */
@@ -296,11 +305,11 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_DESC,
                        "Nagios Event Broker module that forwards Nagios events to Alerta");
 
-  sprintf (message, "[alerta] Initialising Nagios-Alerta Gateway module, v%s", VERSION);
+  snprintf (message, MESSAGE_SIZE, "[alerta] Initialising Nagios-Alerta Gateway module, v%s", VERSION);
   log_info (message);
 
-  char endpoint[1024] = "";
-  char key[1024] = "";
+  char endpoint[URL_SIZE] = "";
+  char key[KEY_SIZE] = "";
   char *token;
   while ((token = strsep (&args, " ")) != NULL) {
     if (strncasecmp (token, "http://", 7) == 0)
@@ -317,10 +326,10 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
       hard_states_only = 1;
   }
   if (strlen(endpoint)) {
-    sprintf (alert_url, "%s/alert", endpoint);
-    sprintf (heartbeat_url, "%s/heartbeat", endpoint);
+    snprintf (alert_url, URL_SIZE, "%s/alert", endpoint);
+    snprintf (heartbeat_url, URL_SIZE, "%s/heartbeat", endpoint);
     if (strlen(key))
-      sprintf (auth_header, "Authorization: Key %s", key);
+      snprintf (auth_header, AUTH_HEADER_SIZE, "Authorization: Key %s", key);
   } else {
     log_config ("[alerta] API endpoint not configured.");
     exit(1);
@@ -342,7 +351,7 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
   neb_register_callback (NEBCALLBACK_SERVICE_CHECK_DATA, alerta_module_handle, 0, check_handler);
   neb_register_callback (NEBCALLBACK_DOWNTIME_DATA, alerta_module_handle, 0, check_handler);
 
-  sprintf (message, "[alerta] Forward service checks, host checks and downtime to %s", endpoint);
+  snprintf (message, MESSAGE_SIZE, "[alerta] Forward service checks, host checks and downtime to %s", endpoint);
   log_info (message);
 
   return NEB_OK;
@@ -369,8 +378,8 @@ check_handler (int event_type, void *data)
   nebstruct_service_check_data *svc_chk_data = NULL;
   nebstruct_downtime_data *downtime_data = NULL;
 
-  char cov_environment[1024] = "";
-  char cov_service[1024] = "";
+  char cov_environment[KEY_SIZE] = "";
+  char cov_service[KEY_SIZE] = "";
   customvariablesmember *customvar = NULL;
 
   switch (event_type) {
@@ -388,14 +397,22 @@ check_handler (int event_type, void *data)
 
         for (cvar = customvar; cvar != NULL; cvar = cvar->next) {
           if (!strcmp (cvar->variable_name, "ENVIRONMENT")) {
-            sprintf (cov_environment, "%s", cvar->variable_value);
+            snprintf (cov_environment, KEY_SIZE, "%s", cvar->variable_value);
           }
           if (!strcmp (cvar->variable_name, "SERVICE")) {
-            sprintf (cov_service, "%s", cvar->variable_value);
+            snprintf (cov_service, KEY_SIZE, "%s", cvar->variable_value);
           }
         }
 
-        sprintf (message,
+        if (host_chk_data->long_output) {
+            strncpy(long_desc, host_chk_data->long_output, LONGDESC_SIZE);
+        } else if (host_chk_data->output) {
+            strncpy(long_desc, host_chk_data->output, LONGDESC_SIZE);
+        } else {
+            *long_desc = 0;
+        }
+
+        snprintf (message, MESSAGE_SIZE,
                  "{"
                  "\"origin\":\"nagios/%s\","
                  "\"resource\":\"%s\","
@@ -418,7 +435,7 @@ check_handler (int event_type, void *data)
                  strcmp(cov_environment, "") ? cov_environment : environment, /* environment */
                  strcmp(cov_service, "") ? replace_char(cov_service, ',', "\",\"") : "Platform", /* service */
                  display_check_type (host_chk_data->check_type), /* tags */
-                 host_chk_data->output, /* text */
+                 long_desc, /* text */
                  host_chk_data->current_attempt, host_chk_data->max_attempts, display_state_type (host_chk_data->state_type), /* value */
                  host_chk_data->perf_data ? host_chk_data->perf_data : ""); /* rawData */
 
@@ -447,7 +464,7 @@ check_handler (int event_type, void *data)
 
           if (svc_chk_data->return_code == STATE_OK) {
             log_debug ("[alerta] Heartbeat service check OK.");
-            sprintf (message, "{ \"origin\": \"nagios/%s\", \"type\": \"Heartbeat\", \"tags\": [\"%s\"] }\n\r",
+            snprintf (message, MESSAGE_SIZE, "{ \"origin\": \"nagios/%s\", \"type\": \"Heartbeat\", \"tags\": [\"%s\"] }\n\r",
                      svc_chk_data->host_name, VERSION);
 
             send_to_alerta (heartbeat_url, message);
@@ -466,14 +483,22 @@ check_handler (int event_type, void *data)
 
           for (cvar = customvar; cvar != NULL; cvar = cvar->next) {
             if (!strcmp (cvar->variable_name, "ENVIRONMENT")) {
-              sprintf (cov_environment, "%s", cvar->variable_value);
+              snprintf (cov_environment, KEY_SIZE, "%s", cvar->variable_value);
             }
             if (!strcmp (cvar->variable_name, "SERVICE")) {
-              sprintf (cov_service, "%s", cvar->variable_value);
+              snprintf (cov_service, KEY_SIZE, "%s", cvar->variable_value);
             }
           }
 
-          sprintf (message,
+          if (svc_chk_data->long_output) {
+              strncpy(long_desc, svc_chk_data->long_output, LONGDESC_SIZE);
+          } else if (svc_chk_data->output) {
+              strncpy(long_desc, svc_chk_data->output, LONGDESC_SIZE);
+          } else {
+              *long_desc = 0;
+          }
+
+          snprintf (message, MESSAGE_SIZE,
                    "{"
                    "\"origin\":\"nagios/%s\","
                    "\"resource\":\"%s\","
@@ -496,13 +521,13 @@ check_handler (int event_type, void *data)
                    strcmp(cov_environment, "") ? cov_environment : environment, /* environment */
                    strcmp(cov_service, "") ? replace_char(cov_service, ',', "\",\"") : "Platform", /* service */
                    display_check_type (svc_chk_data->check_type), /* tags */
-                   svc_chk_data->output, /* text */
+                   long_desc, /* text */
                    svc_chk_data->current_attempt, svc_chk_data->max_attempts, display_state_type (svc_chk_data->state_type), /* value */
                    svc_chk_data->perf_data ? svc_chk_data->perf_data : "");
 
           downtime *dt;
-          char key[2048];
-          sprintf(key, "%s~%s", svc_chk_data->host_name, svc_chk_data->service_description);
+          char key[KEY_SIZE];
+          snprintf(key, KEY_SIZE, "%s~%s", svc_chk_data->host_name, svc_chk_data->service_description);
           HASH_FIND_STR(downtimes, key, dt);
 
           if (dt)
@@ -522,12 +547,12 @@ check_handler (int event_type, void *data)
 
     if ((downtime_data = (nebstruct_downtime_data *) data)) {
 
-      char key[2048];
+      char key[KEY_SIZE];
       downtime *dt = malloc(sizeof(downtime));
       if (downtime_data->downtime_type == HOST_DOWNTIME) {
-        sprintf(key, "%s", downtime_data->host_name);
+        snprintf(key, KEY_SIZE, "%s", downtime_data->host_name);
       } else if (downtime_data->downtime_type == SERVICE_DOWNTIME) {
-        sprintf(key, "%s~%s", downtime_data->host_name, downtime_data->service_description);
+        snprintf(key, KEY_SIZE, "%s~%s", downtime_data->host_name, downtime_data->service_description);
       }
       strcpy(dt->key, key);
       dt->id = downtime_data->downtime_id;
@@ -538,7 +563,7 @@ check_handler (int event_type, void *data)
 
         HASH_ADD_STR(downtimes, key, dt);
 
-        sprintf (message,
+        snprintf (message, MESSAGE_SIZE,
                  "{"
                  "\"origin\":\"nagios/%s\","
                  "\"resource\":\"%s\","
@@ -581,7 +606,7 @@ check_handler (int event_type, void *data)
           free(dt);
         }
 
-        sprintf (message,
+        snprintf (message, MESSAGE_SIZE,
                  "{"
                  "\"origin\":\"nagios/%s\","
                  "\"resource\":\"%s\","
