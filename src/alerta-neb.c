@@ -27,7 +27,8 @@
 
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
-char *VERSION = "3.5.0";
+char *NAME = "Nagios-Alerta Gateway";
+char *VERSION = "3.5.1";
 
 void *alerta_module_handle = NULL;
 
@@ -35,19 +36,21 @@ int check_handler (int, void *);
 
 int debug = 0;
 
-#define MESSAGE_SIZE        32768   //was 4096
+#define MESSAGE_SIZE        32768
 #define LONGDESC_SIZE       MESSAGE_SIZE - 2048
-#define HOSTNAME_SIZE       2048    //was 1024
-#define URL_SIZE            2048    //was 1024
-#define AUTH_HEADER_SIZE    1024    //was 1024
-#define ENVIRONMENT_SIZE    1024    //was 1024
-#define KEY_SIZE            2048    //was 2048
+#define HOSTNAME_SIZE       2048
+#define URL_SIZE            2048
+#define USER_AGENT_SIZE     1024
+#define AUTH_HEADER_SIZE    1024
+#define ENVIRONMENT_SIZE    1024
+#define KEY_SIZE            2048
 
 char message[MESSAGE_SIZE];
 char long_desc[LONGDESC_SIZE];
 char hostname[HOSTNAME_SIZE];
 char alert_url[URL_SIZE];
 char heartbeat_url[URL_SIZE];
+char user_agent[USER_AGENT_SIZE];
 char auth_header[AUTH_HEADER_SIZE];
 char environment[ENVIRONMENT_SIZE] = "Production";
 char hard_states_only = 0;
@@ -244,10 +247,13 @@ send_to_alerta(char *url, char *message)
   headers = curl_slist_append (headers, "Content-Type: application/json");
   headers = curl_slist_append (headers, "Expect:"); //disable 100-continue expectation
 
+  snprintf(user_agent, USER_AGENT_SIZE, "%s/%s", NAME, VERSION);
+
   if (strlen(auth_header))
     headers = curl_slist_append (headers, auth_header);
   curl_easy_setopt (curl, CURLOPT_URL, url);
   curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
+  curl_easy_setopt (curl, CURLOPT_USERAGENT, user_agent);
   curl_easy_setopt (curl, CURLOPT_POSTFIELDS, message_mod);
   res = curl_easy_perform (curl);
   curl_slist_free_all (headers);
@@ -297,7 +303,7 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
 
   alerta_module_handle = handle;        /* save the neb module handle */
 
-  neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_TITLE, "Nagios-Alerta Gateway");
+  neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_TITLE, NAME);
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_AUTHOR, "Nick Satterly");
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_COPYRIGHT, "Copyright (c) 2015-2017 Nick Satterly");
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_VERSION, VERSION);
@@ -305,7 +311,7 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_DESC,
                        "Nagios Event Broker module that forwards Nagios events to Alerta");
 
-  snprintf (message, MESSAGE_SIZE, "[alerta] Initialising Nagios-Alerta Gateway module, v%s", VERSION);
+  snprintf (message, MESSAGE_SIZE, "[alerta] Initialising %s module, v%s", NAME, VERSION);
   log_info (message);
 
   char endpoint[URL_SIZE] = "";
