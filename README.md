@@ -60,7 +60,10 @@ To specify the environment name:
 ```
 broker_module=/usr/lib/nagios/alerta-neb.o http://localhost:8080 env=ENV_NAME_HERE
 ```
-
+To specify the customer name:
+```
+broker_module=/usr/lib/nagios/alerta-neb.o http://localhost:8080 customer=CUSTOMER_NAME_HERE
+```
 To provide the API key if authentication is enabled on the alerta server:
 ```
 broker_module=/usr/lib/nagios/alerta-neb.o http://localhost:8080 key=INSERT_API_KEY_HERE
