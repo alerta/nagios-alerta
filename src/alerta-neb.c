@@ -28,7 +28,7 @@
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
 char *NAME = "Nagios-Alerta Gateway";
-char *VERSION = "3.5.1";
+char *VERSION = "3.5.2";
 
 void *alerta_module_handle = NULL;
 
@@ -43,6 +43,7 @@ int debug = 0;
 #define USER_AGENT_SIZE     1024
 #define AUTH_HEADER_SIZE    1024
 #define ENVIRONMENT_SIZE    1024
+#define CUSTOMER_SIZE       1024	
 #define KEY_SIZE            2048
 
 char message[MESSAGE_SIZE];
@@ -53,6 +54,7 @@ char heartbeat_url[URL_SIZE];
 char user_agent[USER_AGENT_SIZE];
 char auth_header[AUTH_HEADER_SIZE];
 char environment[ENVIRONMENT_SIZE] = "Production";
+char customer[CUSTOMER_SIZE];
 char hard_states_only = 0;
 
 static CURL *curl = NULL;
@@ -324,6 +326,8 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
       strcpy (endpoint, token);
     if (strncasecmp (token, "env=", 4) == 0)
       strcpy (environment, token+4);
+    if (strncasecmp (token, "customer=", 9) == 0)
+      strcpy (customer, token+9);
     if (strncasecmp (token, "key=", 4) == 0)
       strcpy (key, token+4);
     if (strncasecmp (token, "debug=1", 7) == 0)
@@ -385,6 +389,7 @@ check_handler (int event_type, void *data)
   nebstruct_downtime_data *downtime_data = NULL;
 
   char cov_environment[KEY_SIZE] = "";
+  char cov_customer[KEY_SIZE] = "";
   char cov_service[KEY_SIZE] = "";
   customvariablesmember *customvar = NULL;
 
@@ -404,6 +409,9 @@ check_handler (int event_type, void *data)
         for (cvar = customvar; cvar != NULL; cvar = cvar->next) {
           if (!strcmp (cvar->variable_name, "ENVIRONMENT")) {
             snprintf (cov_environment, KEY_SIZE, "%s", cvar->variable_value);
+          }
+          if (!strcmp (cvar->variable_name, "CUSTOMER")) {
+            snprintf (cov_customer, KEY_SIZE, "%s", cvar->variable_value);
           }
           if (!strcmp (cvar->variable_name, "SERVICE")) {
             snprintf (cov_service, KEY_SIZE, "%s", cvar->variable_value);
@@ -426,6 +434,7 @@ check_handler (int event_type, void *data)
                  "\"group\":\"%s\","
                  "\"severity\":\"%s\","
                  "\"environment\":\"%s\","
+                 "\"customer\":\"%s\","
                  "\"service\":[\"%s\"],"
                  "\"tags\":[\"check=%s\"],"
                  "\"text\":\"%s\","
@@ -439,6 +448,7 @@ check_handler (int event_type, void *data)
                  "Nagios", /* group */
                  display_state (host_chk_data->state), /* severity */
                  strcmp(cov_environment, "") ? cov_environment : environment, /* environment */
+                 strcmp(cov_customer, "") ? cov_customer : customer, /* customer */
                  strcmp(cov_service, "") ? replace_char(cov_service, ',', "\",\"") : "Platform", /* service */
                  display_check_type (host_chk_data->check_type), /* tags */
                  long_desc, /* text */
@@ -491,6 +501,9 @@ check_handler (int event_type, void *data)
             if (!strcmp (cvar->variable_name, "ENVIRONMENT")) {
               snprintf (cov_environment, KEY_SIZE, "%s", cvar->variable_value);
             }
+            if (!strcmp (cvar->variable_name, "CUSTOMER")) {
+              snprintf (cov_customer, KEY_SIZE, "%s", cvar->variable_value);
+            }
             if (!strcmp (cvar->variable_name, "SERVICE")) {
               snprintf (cov_service, KEY_SIZE, "%s", cvar->variable_value);
             }
@@ -512,6 +525,7 @@ check_handler (int event_type, void *data)
                    "\"group\":\"%s\","
                    "\"severity\":\"%s\","
                    "\"environment\":\"%s\","
+                   "\"customer\":\"%s\","
                    "\"service\":[\"%s\"],"
                    "\"tags\":[\"check=%s\"],"
                    "\"text\":\"%s\","
@@ -525,6 +539,7 @@ check_handler (int event_type, void *data)
                    "Nagios", /* group */
                    display_state (svc_chk_data->state), /* severity */
                    strcmp(cov_environment, "") ? cov_environment : environment, /* environment */
+                   strcmp(cov_customer, "") ? cov_customer : customer, /* customer */
                    strcmp(cov_service, "") ? replace_char(cov_service, ',', "\",\"") : "Platform", /* service */
                    display_check_type (svc_chk_data->check_type), /* tags */
                    long_desc, /* text */
@@ -577,6 +592,7 @@ check_handler (int event_type, void *data)
                  "\"group\":\"%s\","
                  "\"severity\":\"%s\","
                  "\"environment\":\"%s\","
+                 "\"customer\":\"%s\","
                  "\"service\":[\"%s\"],"
                  "\"tags\":[\"downtime=%s\"],"
                  "\"text\":\"DOWNTIME STARTED (%lus) - %s\","
@@ -590,6 +606,7 @@ check_handler (int event_type, void *data)
                  "Nagios", /* group */
                  "informational", /* severity */
                  strcmp(cov_environment, "") ? cov_environment : environment, /* environment */
+                 strcmp(cov_customer, "") ? cov_customer : customer, /* customer */
                  strcmp(cov_service, "") ? replace_char(cov_service, ',', "\",\"") : "Platform", /* service */
                  display_downtime_type (downtime_data->downtime_type), /* tags */
                  downtime_data->duration, downtime_data->comment_data, /* text */
@@ -620,6 +637,7 @@ check_handler (int event_type, void *data)
                  "\"group\":\"%s\","
                  "\"severity\":\"%s\","
                  "\"environment\":\"%s\","
+                 "\"customer\":\"%s\","
                  "\"service\":[\"%s\"],"
                  "\"tags\":[\"downtime=%s\"],"
                  "\"text\":\"DOWNTIME %s - %s\","
@@ -633,6 +651,7 @@ check_handler (int event_type, void *data)
                  "Nagios", /* group */
                  "normal", /* severity */
                  strcmp(cov_environment, "") ? cov_environment : environment, /* environment */
+                 strcmp(cov_customer, "") ? cov_customer : customer, /* customer */
                  strcmp(cov_service, "") ? replace_char(cov_service, ',', "\",\"") : "Platform", /* service */
                  display_downtime_type (downtime_data->downtime_type), /* tags */
                  downtime_data->attr == NEBATTR_DOWNTIME_STOP_CANCELLED ? "CANCELLED" : "STOPPED", downtime_data->comment_data, /* text */
