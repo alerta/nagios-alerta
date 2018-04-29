@@ -3,7 +3,7 @@ MOD_CFLAGS=-fPIC
 CFLAGS=-g -O2 -DHAVE_CONFIG_H
 MOD_LDFLAGS=-shared
 LDFLAGS=
-LIBS= -lcurl
+LIBS=-lcurl -ljansson
 
 STRIP=/usr/bin/strip
 

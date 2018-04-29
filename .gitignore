@@ -2,3 +2,4 @@
 *.c~
 *.dSYM
 .idea
+.vscode
