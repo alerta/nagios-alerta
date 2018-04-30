@@ -24,11 +24,12 @@
 #include "uthash.h"
 
 #include <curl/curl.h>
+#include <jansson.h>
 
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
 char *NAME = "Nagios-Alerta Gateway";
-char *VERSION = "3.5.2";
+char *VERSION = "4.0.0";
 
 void *alerta_module_handle = NULL;
 
@@ -37,16 +38,19 @@ int check_handler (int, void *);
 int debug = 0;
 
 #define MESSAGE_SIZE        32768
+#define VALUE_SIZE          1024
 #define LONGDESC_SIZE       MESSAGE_SIZE - 2048
 #define HOSTNAME_SIZE       2048
 #define URL_SIZE            2048
 #define USER_AGENT_SIZE     1024
 #define AUTH_HEADER_SIZE    1024
 #define ENVIRONMENT_SIZE    1024
-#define CUSTOMER_SIZE       1024	
+#define CUSTOMER_SIZE       1024
 #define KEY_SIZE            2048
+#define TEMP_SIZE           2048
 
 char message[MESSAGE_SIZE];
+char value[VALUE_SIZE];
 char long_desc[LONGDESC_SIZE];
 char hostname[HOSTNAME_SIZE];
 char alert_url[URL_SIZE];
@@ -55,6 +59,7 @@ char user_agent[USER_AGENT_SIZE];
 char auth_header[AUTH_HEADER_SIZE];
 char environment[ENVIRONMENT_SIZE] = "Production";
 char customer[CUSTOMER_SIZE];
+char temp[TEMP_SIZE];
 char hard_states_only = 0;
 
 static CURL *curl = NULL;
@@ -172,28 +177,6 @@ display_downtime_type (int downtime_type)
   }
 }
 
-char *
-replace_char(const char *input_string, char old_char, const char *new_string) {
-    int count = 0;
-    const char *t;
-    for(t=input_string; *t; t++)
-        count += (*t == old_char);
-
-    size_t rlen = strlen(new_string);
-    char *output_string = malloc(strlen(input_string) + (rlen-1)*count + 1);
-    char *ptr = output_string;
-    for(t=input_string; *t; t++) {
-        if(*t == old_char) {
-            memcpy(ptr, new_string, rlen);
-            ptr += rlen;
-        } else {
-            *ptr++ = *t;
-        }
-    }
-    *ptr = 0;
-    return output_string;
-}
-
 void 
 log_debug(char *message)
 {
@@ -241,9 +224,7 @@ send_to_alerta(char *url, char *message)
     return NEB_ERROR;
   }
 
-  char *message_mod = replace_char(message, '\\', "\\\\");  // kind of escaping 
-
-  log_debug (message_mod);
+  log_debug (message);
 
   struct curl_slist *headers = NULL;
   headers = curl_slist_append (headers, "Content-Type: application/json");
@@ -256,10 +237,9 @@ send_to_alerta(char *url, char *message)
   curl_easy_setopt (curl, CURLOPT_URL, url);
   curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
   curl_easy_setopt (curl, CURLOPT_USERAGENT, user_agent);
-  curl_easy_setopt (curl, CURLOPT_POSTFIELDS, message_mod);
+  curl_easy_setopt (curl, CURLOPT_POSTFIELDS, message);
   res = curl_easy_perform (curl);
   curl_slist_free_all (headers);
-  free (message_mod);
 
   if (res != CURLE_OK) {
     snprintf (message, MESSAGE_SIZE, "[alerta] curl_easy_perform() failed: %s", curl_easy_strerror (res));
@@ -393,6 +373,8 @@ check_handler (int event_type, void *data)
   char cov_service[KEY_SIZE] = "";
   customvariablesmember *customvar = NULL;
 
+  json_t *json;
+
   switch (event_type) {
   case NEBCALLBACK_HOST_CHECK_DATA:
 
@@ -426,34 +408,21 @@ check_handler (int event_type, void *data)
             *long_desc = 0;
         }
 
-        snprintf (message, MESSAGE_SIZE,
-                 "{"
-                 "\"origin\":\"nagios/%s\","
-                 "\"resource\":\"%s\","
-                 "\"event\":\"%s\","
-                 "\"group\":\"%s\","
-                 "\"severity\":\"%s\","
-                 "\"environment\":\"%s\","
-                 "\"customer\":\"%s\","
-                 "\"service\":[\"%s\"],"
-                 "\"tags\":[\"check=%s\"],"
-                 "\"text\":\"%s\","
-                 "\"value\":\"%d/%d (%s)\","
-                 "\"type\":\"nagiosHostAlert\","
-                 "\"rawData\":\"%s\""
-                 " }\n\r",
-                 hostname, /* origin */
-                 host_chk_data->host_name, /* resource */
-                 "Host Check", /* event */
-                 "Nagios", /* group */
-                 display_state (host_chk_data->state), /* severity */
-                 strcmp(cov_environment, "") ? cov_environment : environment, /* environment */
-                 strcmp(cov_customer, "") ? cov_customer : customer, /* customer */
-                 strcmp(cov_service, "") ? replace_char(cov_service, ',', "\",\"") : "Platform", /* service */
-                 display_check_type (host_chk_data->check_type), /* tags */
-                 long_desc, /* text */
-                 host_chk_data->current_attempt, host_chk_data->max_attempts, display_state_type (host_chk_data->state_type), /* value */
-                 host_chk_data->perf_data ? host_chk_data->perf_data : ""); /* rawData */
+        json = json_object();
+        json_object_set_new(json, "origin", json_pack("s+", "nagios/", hostname));
+        json_object_set_new(json, "resource", json_string(host_chk_data->host_name));
+        json_object_set_new(json, "event", json_string("Host Check"));
+        json_object_set_new(json, "group", json_string("Nagios"));
+        json_object_set_new(json, "severity", json_string(display_state (host_chk_data->state)));
+        json_object_set_new(json, "environment", json_string(strcmp(cov_environment, "") ? cov_environment : environment));
+        json_object_set_new(json, "service", json_pack("[s]", strcmp(cov_service, "") ? cov_service : "Platform"));
+        json_object_set_new(json, "tags", json_pack("[s+]", "check=", display_check_type (host_chk_data->check_type)));
+        json_object_set_new(json, "text", json_string(long_desc));
+        snprintf(value, VALUE_SIZE, "%d/%d (%s)", host_chk_data->current_attempt, host_chk_data->max_attempts, display_state_type (host_chk_data->state_type));
+        json_object_set_new(json, "value", json_string(value));
+        json_object_set_new(json, "type", json_string("nagiosHostAlert"));
+        json_object_set_new(json, "rawData", json_string(host_chk_data->perf_data ? host_chk_data->perf_data : ""));
+        json_object_set_new(json, "customer", json_string(strcmp(cov_customer, "") ? cov_customer : customer));
 
         downtime *dt;
         HASH_FIND_STR(downtimes, host_chk_data->host_name, dt);
@@ -464,7 +433,9 @@ check_handler (int event_type, void *data)
             if (hard_states_only && host_chk_data->state_type == SOFT_STATE)
               log_debug ("[alerta] Host in Soft state -- suppress.");
             else
-              send_to_alerta (alert_url, message);
+              send_to_alerta (alert_url, json_dumps(json, 0));
+
+        json_decref(json);
       }
     }
 
@@ -480,10 +451,15 @@ check_handler (int event_type, void *data)
 
           if (svc_chk_data->return_code == STATE_OK) {
             log_debug ("[alerta] Heartbeat service check OK.");
-            snprintf (message, MESSAGE_SIZE, "{ \"origin\": \"nagios/%s\", \"type\": \"Heartbeat\", \"tags\": [\"%s\"] }\n\r",
-                     svc_chk_data->host_name, VERSION);
 
-            send_to_alerta (heartbeat_url, message);
+            json = json_object();
+            json_object_set_new(json, "origin", json_pack("s+", "nagios/", svc_chk_data->host_name));
+            json_object_set_new(json, "type", json_string("Heartbeat"));
+            json_object_set_new(json, "tags", json_pack("[s]", VERSION));
+            json_object_set_new(json, "customer", json_string(strcmp(cov_customer, "") ? cov_customer : customer));
+
+            send_to_alerta (heartbeat_url, json_dumps(json, 0));
+            json_decref(json);
           }
           else {
             log_warning ("[alerta] Heartbeat service check failed.");
@@ -517,34 +493,21 @@ check_handler (int event_type, void *data)
               *long_desc = 0;
           }
 
-          snprintf (message, MESSAGE_SIZE,
-                   "{"
-                   "\"origin\":\"nagios/%s\","
-                   "\"resource\":\"%s\","
-                   "\"event\":\"%s\","
-                   "\"group\":\"%s\","
-                   "\"severity\":\"%s\","
-                   "\"environment\":\"%s\","
-                   "\"customer\":\"%s\","
-                   "\"service\":[\"%s\"],"
-                   "\"tags\":[\"check=%s\"],"
-                   "\"text\":\"%s\","
-                   "\"value\":\"%d/%d (%s)\","
-                   "\"type\":\"nagiosServiceAlert\","
-                   "\"rawData\":\"%s\""
-                   "}\n\r",
-                   hostname, /* origin */
-                   svc_chk_data->host_name, /* resource */
-                   svc_chk_data->service_description, /* event */
-                   "Nagios", /* group */
-                   display_state (svc_chk_data->state), /* severity */
-                   strcmp(cov_environment, "") ? cov_environment : environment, /* environment */
-                   strcmp(cov_customer, "") ? cov_customer : customer, /* customer */
-                   strcmp(cov_service, "") ? replace_char(cov_service, ',', "\",\"") : "Platform", /* service */
-                   display_check_type (svc_chk_data->check_type), /* tags */
-                   long_desc, /* text */
-                   svc_chk_data->current_attempt, svc_chk_data->max_attempts, display_state_type (svc_chk_data->state_type), /* value */
-                   svc_chk_data->perf_data ? svc_chk_data->perf_data : "");
+          json = json_object();
+          json_object_set_new(json, "origin", json_pack("s+", "nagios/", hostname));
+          json_object_set_new(json, "resource", json_string(svc_chk_data->host_name));
+          json_object_set_new(json, "event", json_string(svc_chk_data->service_description));
+          json_object_set_new(json, "group", json_string("Nagios"));
+          json_object_set_new(json, "severity", json_string(display_state (svc_chk_data->state)));
+          json_object_set_new(json, "environment", json_string(strcmp(cov_environment, "") ? cov_environment : environment));
+          json_object_set_new(json, "service", json_pack("[s]", strcmp(cov_service, "") ? cov_service : "Platform"));
+          json_object_set_new(json, "tags", json_pack("[s]", display_check_type (svc_chk_data->check_type)));
+          json_object_set_new(json, "text", json_string(long_desc));
+          snprintf(value, VALUE_SIZE, "%d/%d (%s)", svc_chk_data->current_attempt, svc_chk_data->max_attempts, display_state_type (svc_chk_data->state_type));
+          json_object_set_new(json, "value", json_string(value));
+          json_object_set_new(json, "type", json_string("nagiosServiceAlert"));
+          json_object_set_new(json, "rawData", json_string(svc_chk_data->perf_data ? svc_chk_data->perf_data : ""));
+          json_object_set_new(json, "customer", json_string(strcmp(cov_customer, "") ? cov_customer : customer));
 
           downtime *dt;
           char key[KEY_SIZE];
@@ -557,7 +520,9 @@ check_handler (int event_type, void *data)
             if (hard_states_only && svc_chk_data->state_type == SOFT_STATE)
               log_debug ("[alerta] Service in Soft state -- suppress.");
             else
-              send_to_alerta (alert_url, message);
+              send_to_alerta (alert_url, json_dumps(json, 0));
+
+          json_decref(json);
         }
       }
     }
@@ -584,38 +549,26 @@ check_handler (int event_type, void *data)
 
         HASH_ADD_STR(downtimes, key, dt);
 
-        snprintf (message, MESSAGE_SIZE,
-                 "{"
-                 "\"origin\":\"nagios/%s\","
-                 "\"resource\":\"%s\","
-                 "\"event\":\"%s\","
-                 "\"group\":\"%s\","
-                 "\"severity\":\"%s\","
-                 "\"environment\":\"%s\","
-                 "\"customer\":\"%s\","
-                 "\"service\":[\"%s\"],"
-                 "\"tags\":[\"downtime=%s\"],"
-                 "\"text\":\"DOWNTIME STARTED (%lus) - %s\","
-                 "\"value\":\"id=%lu\","
-                 "\"type\":\"%s\","
-                 "\"rawData\":\"%s;%lu;%lu;%d;%lu;%lu;%s;%s\""
-                 "}\n\r",
-                 hostname, /* origin */
-                 downtime_data->host_name, /* resource */
-                 downtime_data->service_description ? downtime_data->service_description : "Host Check", /* event */
-                 "Nagios", /* group */
-                 "informational", /* severity */
-                 strcmp(cov_environment, "") ? cov_environment : environment, /* environment */
-                 strcmp(cov_customer, "") ? cov_customer : customer, /* customer */
-                 strcmp(cov_service, "") ? replace_char(cov_service, ',', "\",\"") : "Platform", /* service */
-                 display_downtime_type (downtime_data->downtime_type), /* tags */
-                 downtime_data->duration, downtime_data->comment_data, /* text */
-                 downtime_data->downtime_id, /* value */
-                 downtime_data->downtime_type == HOST_DOWNTIME ? "nagiosHostAlert" : "nagiosServiceAlert",
-                 downtime_data->host_name, downtime_data->start_time, downtime_data->end_time, downtime_data->fixed, downtime_data->triggered_by, downtime_data->duration, downtime_data->author_name, downtime_data->comment_data
-                 );
+        json = json_object();
+        json_object_set_new(json, "origin", json_pack("s+", "nagios/", hostname));
+        json_object_set_new(json, "resource", json_string(downtime_data->host_name));
+        json_object_set_new(json, "event", json_string(downtime_data->service_description ? downtime_data->service_description : "Host Check"));
+        json_object_set_new(json, "group", json_string("Nagios"));
+        json_object_set_new(json, "severity", json_string("informational"));
+        json_object_set_new(json, "environment", json_string(strcmp(cov_environment, "") ? cov_environment : environment));
+        json_object_set_new(json, "service", json_pack("[s]", strcmp(cov_service, "") ? cov_service : "Platform"));
+        json_object_set_new(json, "tags", json_pack("[s+]", "downtime=", display_downtime_type (downtime_data->downtime_type)));
+        snprintf(temp, TEMP_SIZE, "DOWNTIME STARTED (%lus) - %s", downtime_data->duration, downtime_data->comment_data);
+        json_object_set_new(json, "text", json_string(temp));
+        snprintf(temp, TEMP_SIZE, "id=%lu", downtime_data->downtime_id);
+        json_object_set_new(json, "value", json_string(temp));
+        json_object_set_new(json, "type", json_string(downtime_data->downtime_type == HOST_DOWNTIME ? "nagiosHostAlert" : "nagiosServiceAlert"));
+        snprintf(temp, TEMP_SIZE, "%s;%lu;%lu;%d;%lu;%lu;%s;%s", downtime_data->host_name, downtime_data->start_time, downtime_data->end_time, downtime_data->fixed, downtime_data->triggered_by, downtime_data->duration, downtime_data->author_name, downtime_data->comment_data);
+        json_object_set_new(json, "rawData", json_string(temp));
+        json_object_set_new(json, "customer", json_string(strcmp(cov_customer, "") ? cov_customer : customer));
 
-        send_to_alerta (alert_url, message);
+        send_to_alerta (alert_url, json_dumps(json, 0));
+        json_decref(json);
       }
 
       if (downtime_data->type == NEBTYPE_DOWNTIME_STOP) {
@@ -629,38 +582,26 @@ check_handler (int event_type, void *data)
           free(dt);
         }
 
-        snprintf (message, MESSAGE_SIZE,
-                 "{"
-                 "\"origin\":\"nagios/%s\","
-                 "\"resource\":\"%s\","
-                 "\"event\":\"%s\","
-                 "\"group\":\"%s\","
-                 "\"severity\":\"%s\","
-                 "\"environment\":\"%s\","
-                 "\"customer\":\"%s\","
-                 "\"service\":[\"%s\"],"
-                 "\"tags\":[\"downtime=%s\"],"
-                 "\"text\":\"DOWNTIME %s - %s\","
-                 "\"value\":\"id=%lu\","
-                 "\"type\":\"%s\","
-                 "\"rawData\":\"%s;%lu;%lu;%d;%lu;%lu;%s;%s\""
-                 "}\n\r",
-                 hostname, /* origin */
-                 downtime_data->host_name, /* resource */
-                 downtime_data->service_description ? downtime_data->service_description : "Host Check", /* event */
-                 "Nagios", /* group */
-                 "normal", /* severity */
-                 strcmp(cov_environment, "") ? cov_environment : environment, /* environment */
-                 strcmp(cov_customer, "") ? cov_customer : customer, /* customer */
-                 strcmp(cov_service, "") ? replace_char(cov_service, ',', "\",\"") : "Platform", /* service */
-                 display_downtime_type (downtime_data->downtime_type), /* tags */
-                 downtime_data->attr == NEBATTR_DOWNTIME_STOP_CANCELLED ? "CANCELLED" : "STOPPED", downtime_data->comment_data, /* text */
-                 downtime_data->downtime_id, /* value */
-                 downtime_data->downtime_type == HOST_DOWNTIME ? "nagiosHostAlert" : "nagiosServiceAlert",
-                 downtime_data->host_name, downtime_data->start_time, downtime_data->end_time, downtime_data->fixed, downtime_data->triggered_by, downtime_data->duration, downtime_data->author_name, downtime_data->comment_data
-                 );
+        json = json_object();
+        json_object_set_new(json, "origin", json_pack("s+", "nagios/", hostname));
+        json_object_set_new(json, "resource", json_string(downtime_data->host_name));
+        json_object_set_new(json, "event", json_string(downtime_data->service_description ? downtime_data->service_description : "Host Check"));
+        json_object_set_new(json, "group", json_string("Nagios"));
+        json_object_set_new(json, "severity", json_string("normal"));
+        json_object_set_new(json, "environment", json_string(strcmp(cov_environment, "") ? cov_environment : environment));
+        json_object_set_new(json, "service", json_pack("[s]", strcmp(cov_service, "") ? cov_service : "Platform"));
+        json_object_set_new(json, "tags", json_pack("[s+]", "downtime=", display_downtime_type (downtime_data->downtime_type)));
+        snprintf(temp, TEMP_SIZE, "DOWNTIME %s - %s", downtime_data->attr == NEBATTR_DOWNTIME_STOP_CANCELLED ? "CANCELLED" : "STOPPED", downtime_data->comment_data);
+        json_object_set_new(json, "text", json_string(temp));
+        snprintf(temp, TEMP_SIZE, "id=%lu", downtime_data->downtime_id);
+        json_object_set_new(json, "value", json_string(temp));
+        json_object_set_new(json, "type", json_string(downtime_data->downtime_type == HOST_DOWNTIME ? "nagiosHostAlert" : "nagiosServiceAlert"));
+        snprintf(temp, TEMP_SIZE, "%s;%lu;%lu;%d;%lu;%lu;%s;%s", downtime_data->host_name, downtime_data->start_time, downtime_data->end_time, downtime_data->fixed, downtime_data->triggered_by, downtime_data->duration, downtime_data->author_name, downtime_data->comment_data);
+        json_object_set_new(json, "rawData", json_string(temp));
+        json_object_set_new(json, "customer", json_string(strcmp(cov_customer, "") ? cov_customer : customer));
 
-        send_to_alerta (alert_url, message);
+        send_to_alerta (alert_url, json_dumps(json, 0));
+        json_decref(json);
       }
     }
 
