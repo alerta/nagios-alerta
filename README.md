@@ -60,7 +60,10 @@ To specify the environment name:
 ```
 broker_module=/usr/lib/nagios/alerta-neb.o http://localhost:8080 env=ENV_NAME_HERE
 ```
-
+To specify the customer name:
+```
+broker_module=/usr/lib/nagios/alerta-neb.o http://localhost:8080 customer=CUSTOMER_NAME_HERE
+```
 To provide the API key if authentication is enabled on the alerta server:
 ```
 broker_module=/usr/lib/nagios/alerta-neb.o http://localhost:8080 key=INSERT_API_KEY_HERE
@@ -106,6 +109,33 @@ define service{
         check_command                   check_procs!250!400
         }
 ```
+
+
+Setting Customer Per-Check
+--------------------------
+
+Use [custom object variables](https://assets.nagios.com/downloads/nagioscore/docs/nagioscore/3/en/customobjectvars.html) to set [customer_views](http://alerta.readthedocs.io/en/latest/customer-views.html)
+
+```
+define host{
+        use                     generic-host            ; Name of host template to use
+        host_name               localhost
+        alias                   localhost
+        address                 127.0.0.1
+        _Customer               Customer1
+        }
+```
+
+```
+define service{
+        use                             generic-service         ; Name of service template to use
+        host_name                       localhost
+        service_description             Total Processes
+        _Customer                       Customer1
+        check_command                   check_procs!250!400
+        }
+```
+
 
 Heartbeats
 ----------
