@@ -210,6 +210,13 @@ log_error (char *message)
 }
 
 int
+log_curl (CURL * handle, curl_infotype type, char *data, size_t size, void *userptr)
+{
+  snprintf (message, MESSAGE_SIZE, "[curl] %s", data);
+  log_debug (message);
+}
+
+int
 send_to_alerta (char *url, char *message)
 {
   CURLcode res;
@@ -240,6 +247,10 @@ send_to_alerta (char *url, char *message)
   curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
   curl_easy_setopt (curl, CURLOPT_USERAGENT, user_agent);
   curl_easy_setopt (curl, CURLOPT_POSTFIELDS, message);
+  if (debug) {
+    curl_easy_setopt (curl, CURLOPT_VERBOSE, 1L);
+    curl_easy_setopt (curl, CURLOPT_DEBUGFUNCTION, log_curl);
+  }
   res = curl_easy_perform (curl);
   curl_slist_free_all (headers);
 
