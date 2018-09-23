@@ -2,7 +2,7 @@
  *
  * ALERTA-NEB.C
  *
- *     $ indent -br -nut -l160 alerta-neb.c
+ *     $ indent -i2 -di1 -br -nut -pcs -l160 -bls alerta-neb.c
  *
  *****************************************************************************/
 
@@ -76,7 +76,8 @@ downtime *downtimes = NULL;
 const char *
 display_evt_type (int type)
 {
-  switch (type) {
+  switch (type)
+  {
   case NEBTYPE_HOSTCHECK_INITIATE:
   case NEBTYPE_HOSTCHECK_PROCESSED:
   case NEBTYPE_HOSTCHECK_RAW_START:
@@ -98,7 +99,8 @@ display_evt_type (int type)
 const char *
 display_evt_class (int class)
 {
-  switch (class) {
+  switch (class)
+  {
   case NEBTYPE_HOSTCHECK_INITIATE:
   case NEBTYPE_SERVICECHECK_INITIATE:
     return ("Initiate");
@@ -124,7 +126,8 @@ display_evt_class (int class)
 const char *
 display_state (int state)
 {
-  switch (state) {
+  switch (state)
+  {
   case STATE_OK:
     return ("normal");
   case STATE_WARNING:
@@ -140,7 +143,8 @@ display_state (int state)
 const char *
 display_state_type (int state_type)
 {
-  switch (state_type) {
+  switch (state_type)
+  {
   case SOFT_STATE:
     return ("Soft");
   case HARD_STATE:
@@ -153,11 +157,12 @@ display_state_type (int state_type)
 const char *
 display_check_type (int check_type)
 {
-  switch (check_type) {
-    // case HOST_CHECK_ACTIVE:
+  switch (check_type)
+  {
+  //case HOST_CHECK_ACTIVE:
   case SERVICE_CHECK_ACTIVE:
     return ("Active");
-    // case HOST_CHECK_PASSIVE:
+  //case HOST_CHECK_PASSIVE:
   case SERVICE_CHECK_PASSIVE:
     return ("Passive");
   default:
@@ -168,7 +173,8 @@ display_check_type (int check_type)
 const char *
 display_downtime_type (int downtime_type)
 {
-  switch (downtime_type) {
+  switch (downtime_type)
+  {
   case SERVICE_DOWNTIME:
     return ("Service Downtime");
   case HOST_DOWNTIME:
@@ -222,22 +228,23 @@ send_to_alerta (char *url, char *message)
   CURLcode res;
   long status;
 
-  if (curl == NULL) {
+  if (curl == NULL)
+  {
     curl = curl_easy_init ();
-  }
-  else {
+  } else
+  {
     curl_easy_reset (curl);
   }
 
-  if (!curl) {
+  if (!curl)
+  {
     return NEB_ERROR;
   }
-
   log_debug (message);
 
   struct curl_slist *headers = NULL;
   headers = curl_slist_append (headers, "Content-Type: application/json");
-  headers = curl_slist_append (headers, "Expect:");     //disable 100-continue expectation
+  headers = curl_slist_append (headers, "Expect:");     /* disable 100 - continue expectation */
 
   snprintf (user_agent, USER_AGENT_SIZE, "%s/%s", NAME, VERSION);
 
@@ -247,21 +254,24 @@ send_to_alerta (char *url, char *message)
   curl_easy_setopt (curl, CURLOPT_HTTPHEADER, headers);
   curl_easy_setopt (curl, CURLOPT_USERAGENT, user_agent);
   curl_easy_setopt (curl, CURLOPT_POSTFIELDS, message);
-  if (debug) {
+  if (debug)
+  {
     curl_easy_setopt (curl, CURLOPT_VERBOSE, 1L);
     curl_easy_setopt (curl, CURLOPT_DEBUGFUNCTION, log_curl);
   }
   res = curl_easy_perform (curl);
   curl_slist_free_all (headers);
 
-  if (res != CURLE_OK) {
+  if (res != CURLE_OK)
+  {
     snprintf (message, MESSAGE_SIZE, "[alerta] curl_easy_perform() failed: %s", curl_easy_strerror (res));
     log_error (message);
     return res;
   }
   curl_easy_getinfo (curl, CURLINFO_RESPONSE_CODE, &status);
 
-  switch (status) {
+  switch (status)
+  {
   case 200:
   case 201:
     snprintf (message, MESSAGE_SIZE, "[alerta] HTTP response OK (status=%ld)", status);
@@ -296,7 +306,7 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
 {
   gethostname (hostname, 1023);
 
-  alerta_module_handle = handle;        /* save the neb module handle */
+  alerta_module_handle = handle;/* save the neb module handle */
 
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_TITLE, NAME);
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_AUTHOR, "Nick Satterly");
@@ -311,7 +321,8 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
   char endpoint[URL_SIZE] = "";
   char key[KEY_SIZE] = "";
   char *token;
-  while ((token = strsep (&args, " ")) != NULL) {
+  while ((token = strsep (&args, " ")) != NULL)
+  {
     if (strncasecmp (token, "http://", 7) == 0)
       strcpy (endpoint, token);
     if (strncasecmp (token, "https://", 8) == 0)
@@ -327,13 +338,14 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
     if (strncasecmp (token, "hard_only=1", 11) == 0)
       hard_states_only = 1;
   }
-  if (strlen (endpoint)) {
+  if (strlen (endpoint))
+  {
     snprintf (alert_url, URL_SIZE, "%s/alert", endpoint);
     snprintf (heartbeat_url, URL_SIZE, "%s/heartbeat", endpoint);
     if (strlen (key))
       snprintf (auth_header, AUTH_HEADER_SIZE, "Authorization: Key %s", key);
-  }
-  else {
+  } else
+  {
     log_config ("[alerta] API endpoint not configured.");
     exit (1);
   }
@@ -388,12 +400,15 @@ check_handler (int event_type, void *data)
 
   json_t *json;
 
-  switch (event_type) {
+  switch (event_type)
+  {
   case NEBCALLBACK_HOST_CHECK_DATA:
 
-    if ((host_chk_data = (nebstruct_host_check_data *) data)) {
+    if ((host_chk_data = (nebstruct_host_check_data *) data))
+    {
 
-      if (host_chk_data->type == NEBTYPE_HOSTCHECK_PROCESSED) {
+      if (host_chk_data->type == NEBTYPE_HOSTCHECK_PROCESSED)
+      {
 
         log_debug ("[alerta] Host check received.");
 
@@ -401,25 +416,30 @@ check_handler (int event_type, void *data)
         customvar = host_object->custom_variables;
         customvariablesmember *cvar;
 
-        for (cvar = customvar; cvar != NULL; cvar = cvar->next) {
-          if (!strcmp (cvar->variable_name, "ENVIRONMENT")) {
+        for (cvar = customvar; cvar != NULL; cvar = cvar->next)
+        {
+          if (!strcmp (cvar->variable_name, "ENVIRONMENT"))
+          {
             snprintf (cov_environment, KEY_SIZE, "%s", cvar->variable_value);
           }
-          if (!strcmp (cvar->variable_name, "CUSTOMER")) {
+          if (!strcmp (cvar->variable_name, "CUSTOMER"))
+          {
             snprintf (cov_customer, KEY_SIZE, "%s", cvar->variable_value);
           }
-          if (!strcmp (cvar->variable_name, "SERVICE")) {
+          if (!strcmp (cvar->variable_name, "SERVICE"))
+          {
             snprintf (cov_service, KEY_SIZE, "%s", cvar->variable_value);
           }
         }
 
-        if (host_chk_data->long_output) {
+        if (host_chk_data->long_output)
+        {
           strncpy (long_desc, host_chk_data->long_output, LONGDESC_SIZE);
-        }
-        else if (host_chk_data->output) {
+        } else if (host_chk_data->output)
+        {
           strncpy (long_desc, host_chk_data->output, LONGDESC_SIZE);
-        }
-        else {
+        } else
+        {
           *long_desc = 0;
         }
 
@@ -438,9 +458,9 @@ check_handler (int event_type, void *data)
         json_object_set_new (json, "type", json_string ("nagiosHostAlert"));
         json_object_set_new (json, "rawData", json_string (host_chk_data->perf_data ? host_chk_data->perf_data : ""));
         json_object_set_new (json, "customer",
-            strcmp (cov_customer, "") ? json_string (cov_customer) :
-            strcmp (customer, "") ? json_string (customer) : json_null()
-        );
+                             strcmp (cov_customer, "") ? json_string (cov_customer) :
+                             strcmp (customer, "") ? json_string (customer) : json_null ()
+          );
 
         downtime *dt;
         HASH_FIND_STR (downtimes, host_chk_data->host_name, dt);
@@ -455,26 +475,31 @@ check_handler (int event_type, void *data)
         json_decref (json);
       }
     }
-
     break;
 
   case NEBCALLBACK_SERVICE_CHECK_DATA:
 
-    if ((svc_chk_data = (nebstruct_service_check_data *) data)) {
+    if ((svc_chk_data = (nebstruct_service_check_data *) data))
+    {
 
-      if (svc_chk_data->type == NEBTYPE_SERVICECHECK_PROCESSED) {
+      if (svc_chk_data->type == NEBTYPE_SERVICECHECK_PROCESSED)
+      {
 
-        if (!strcmp (svc_chk_data->service_description, "Heartbeat")) {
+        if (!strcmp (svc_chk_data->service_description, "Heartbeat"))
+        {
 
-          if (svc_chk_data->return_code == STATE_OK) {
+          if (svc_chk_data->return_code == STATE_OK)
+          {
             log_debug ("[alerta] Heartbeat service check OK.");
 
             service *service_object = svc_chk_data->object_ptr;
             customvar = service_object->custom_variables;
             customvariablesmember *cvar;
 
-            for (cvar = customvar; cvar != NULL; cvar = cvar->next) {
-              if (!strcmp (cvar->variable_name, "CUSTOMER")) {
+            for (cvar = customvar; cvar != NULL; cvar = cvar->next)
+            {
+              if (!strcmp (cvar->variable_name, "CUSTOMER"))
+              {
                 snprintf (cov_customer, KEY_SIZE, "%s", cvar->variable_value);
               }
             }
@@ -484,18 +509,18 @@ check_handler (int event_type, void *data)
             json_object_set_new (json, "type", json_string ("Heartbeat"));
             json_object_set_new (json, "tags", json_pack ("[s]", VERSION));
             json_object_set_new (json, "customer",
-                strcmp (cov_customer, "") ? json_string (cov_customer) :
-                strcmp (customer, "") ? json_string (customer) : json_null()
-            );
+                                 strcmp (cov_customer, "") ? json_string (cov_customer) :
+                                 strcmp (customer, "") ? json_string (customer) : json_null ()
+              );
 
             send_to_alerta (heartbeat_url, json_dumps (json, 0));
             json_decref (json);
-          }
-          else {
+          } else
+          {
             log_warning ("[alerta] Heartbeat service check failed.");
           }
-        }
-        else {
+        } else
+        {
 
           log_debug ("[alerta] Service check received.");
 
@@ -503,25 +528,30 @@ check_handler (int event_type, void *data)
           customvar = service_object->custom_variables;
           customvariablesmember *cvar;
 
-          for (cvar = customvar; cvar != NULL; cvar = cvar->next) {
-            if (!strcmp (cvar->variable_name, "ENVIRONMENT")) {
+          for (cvar = customvar; cvar != NULL; cvar = cvar->next)
+          {
+            if (!strcmp (cvar->variable_name, "ENVIRONMENT"))
+            {
               snprintf (cov_environment, KEY_SIZE, "%s", cvar->variable_value);
             }
-            if (!strcmp (cvar->variable_name, "CUSTOMER")) {
+            if (!strcmp (cvar->variable_name, "CUSTOMER"))
+            {
               snprintf (cov_customer, KEY_SIZE, "%s", cvar->variable_value);
             }
-            if (!strcmp (cvar->variable_name, "SERVICE")) {
+            if (!strcmp (cvar->variable_name, "SERVICE"))
+            {
               snprintf (cov_service, KEY_SIZE, "%s", cvar->variable_value);
             }
           }
 
-          if (svc_chk_data->long_output) {
+          if (svc_chk_data->long_output)
+          {
             strncpy (long_desc, svc_chk_data->long_output, LONGDESC_SIZE);
-          }
-          else if (svc_chk_data->output) {
+          } else if (svc_chk_data->output)
+          {
             strncpy (long_desc, svc_chk_data->output, LONGDESC_SIZE);
-          }
-          else {
+          } else
+          {
             *long_desc = 0;
           }
 
@@ -540,9 +570,9 @@ check_handler (int event_type, void *data)
           json_object_set_new (json, "type", json_string ("nagiosServiceAlert"));
           json_object_set_new (json, "rawData", json_string (svc_chk_data->perf_data ? svc_chk_data->perf_data : ""));
           json_object_set_new (json, "customer",
-            strcmp (cov_customer, "") ? json_string (cov_customer) :
-            strcmp (customer, "") ? json_string (customer) : json_null()
-          );
+                               strcmp (cov_customer, "") ? json_string (cov_customer) :
+                               strcmp (customer, "") ? json_string (customer) : json_null ()
+            );
 
           downtime *dt;
           char key[KEY_SIZE];
@@ -560,25 +590,27 @@ check_handler (int event_type, void *data)
         }
       }
     }
-
     break;
 
   case NEBCALLBACK_DOWNTIME_DATA:
 
-    if ((downtime_data = (nebstruct_downtime_data *) data)) {
+    if ((downtime_data = (nebstruct_downtime_data *) data))
+    {
 
       char key[KEY_SIZE];
       downtime *dt = malloc (sizeof (downtime));
-      if (downtime_data->downtime_type == HOST_DOWNTIME) {
+      if (downtime_data->downtime_type == HOST_DOWNTIME)
+      {
         snprintf (key, KEY_SIZE, "%s", downtime_data->host_name);
-      }
-      else if (downtime_data->downtime_type == SERVICE_DOWNTIME) {
+      } else if (downtime_data->downtime_type == SERVICE_DOWNTIME)
+      {
         snprintf (key, KEY_SIZE, "%s~%s", downtime_data->host_name, downtime_data->service_description);
       }
       strcpy (dt->key, key);
       dt->id = downtime_data->downtime_id;
 
-      if (downtime_data->type == NEBTYPE_DOWNTIME_START) {
+      if (downtime_data->type == NEBTYPE_DOWNTIME_START)
+      {
 
         log_debug ("[alerta] Downtime started.");
 
@@ -603,25 +635,25 @@ check_handler (int event_type, void *data)
                   downtime_data->author_name, downtime_data->comment_data);
         json_object_set_new (json, "rawData", json_string (temp));
         json_object_set_new (json, "customer",
-            strcmp (cov_customer, "") ? json_string (cov_customer) :
-            strcmp (customer, "") ? json_string (customer) : json_null()
-        );
+                             strcmp (cov_customer, "") ? json_string (cov_customer) :
+                             strcmp (customer, "") ? json_string (customer) : json_null ()
+          );
 
         send_to_alerta (alert_url, json_dumps (json, 0));
         json_decref (json);
       }
-
-      if (downtime_data->type == NEBTYPE_DOWNTIME_STOP) {
+      if (downtime_data->type == NEBTYPE_DOWNTIME_STOP)
+      {
 
         log_debug ("[alerta] Downtime stopped.");
 
         downtime *dt;
         HASH_FIND_STR (downtimes, key, dt);
-        if (dt) {
+        if (dt)
+        {
           HASH_DEL (downtimes, dt);
           free (dt);
         }
-
         json = json_object ();
         json_object_set_new (json, "origin", json_pack ("s+", "nagios/", hostname));
         json_object_set_new (json, "resource", json_string (downtime_data->host_name));
@@ -642,15 +674,14 @@ check_handler (int event_type, void *data)
                   downtime_data->author_name, downtime_data->comment_data);
         json_object_set_new (json, "rawData", json_string (temp));
         json_object_set_new (json, "customer",
-            strcmp (cov_customer, "") ? json_string (cov_customer) :
-            strcmp (customer, "") ? json_string (customer) : json_null()
-        );
+                             strcmp (cov_customer, "") ? json_string (cov_customer) :
+                             strcmp (customer, "") ? json_string (customer) : json_null ()
+          );
 
         send_to_alerta (alert_url, json_dumps (json, 0));
         json_decref (json);
       }
     }
-
     break;
 
   default:
