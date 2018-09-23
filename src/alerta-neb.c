@@ -29,7 +29,7 @@
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
 char *NAME = "Nagios-Alerta Gateway";
-char *VERSION = "4.0.0";
+char *VERSION = "4.0.1";
 
 void *alerta_module_handle = NULL;
 
@@ -300,7 +300,7 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
 
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_TITLE, NAME);
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_AUTHOR, "Nick Satterly");
-  neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_COPYRIGHT, "Copyright (c) 2015-2017 Nick Satterly");
+  neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_COPYRIGHT, "Copyright (c) 2015-2018 Nick Satterly");
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_VERSION, VERSION);
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_LICENSE, "MIT License");
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_DESC, "Nagios Event Broker module that forwards Nagios events to Alerta");
@@ -437,7 +437,10 @@ check_handler (int event_type, void *data)
         json_object_set_new (json, "value", json_string (value));
         json_object_set_new (json, "type", json_string ("nagiosHostAlert"));
         json_object_set_new (json, "rawData", json_string (host_chk_data->perf_data ? host_chk_data->perf_data : ""));
-        json_object_set_new (json, "customer", json_string (strcmp (cov_customer, "") ? cov_customer : customer));
+        json_object_set_new (json, "customer",
+            strcmp (cov_customer, "") ? json_string (cov_customer) :
+            strcmp (customer, "") ? json_string (customer) : json_null()
+        );
 
         downtime *dt;
         HASH_FIND_STR (downtimes, host_chk_data->host_name, dt);
@@ -466,11 +469,24 @@ check_handler (int event_type, void *data)
           if (svc_chk_data->return_code == STATE_OK) {
             log_debug ("[alerta] Heartbeat service check OK.");
 
+            service *service_object = svc_chk_data->object_ptr;
+            customvar = service_object->custom_variables;
+            customvariablesmember *cvar;
+
+            for (cvar = customvar; cvar != NULL; cvar = cvar->next) {
+              if (!strcmp (cvar->variable_name, "CUSTOMER")) {
+                snprintf (cov_customer, KEY_SIZE, "%s", cvar->variable_value);
+              }
+            }
+
             json = json_object ();
             json_object_set_new (json, "origin", json_pack ("s+", "nagios/", svc_chk_data->host_name));
             json_object_set_new (json, "type", json_string ("Heartbeat"));
             json_object_set_new (json, "tags", json_pack ("[s]", VERSION));
-            json_object_set_new (json, "customer", json_string (strcmp (cov_customer, "") ? cov_customer : customer));
+            json_object_set_new (json, "customer",
+                strcmp (cov_customer, "") ? json_string (cov_customer) :
+                strcmp (customer, "") ? json_string (customer) : json_null()
+            );
 
             send_to_alerta (heartbeat_url, json_dumps (json, 0));
             json_decref (json);
@@ -523,7 +539,10 @@ check_handler (int event_type, void *data)
           json_object_set_new (json, "value", json_string (value));
           json_object_set_new (json, "type", json_string ("nagiosServiceAlert"));
           json_object_set_new (json, "rawData", json_string (svc_chk_data->perf_data ? svc_chk_data->perf_data : ""));
-          json_object_set_new (json, "customer", json_string (strcmp (cov_customer, "") ? cov_customer : customer));
+          json_object_set_new (json, "customer",
+            strcmp (cov_customer, "") ? json_string (cov_customer) :
+            strcmp (customer, "") ? json_string (customer) : json_null()
+          );
 
           downtime *dt;
           char key[KEY_SIZE];
@@ -583,7 +602,10 @@ check_handler (int event_type, void *data)
                   downtime_data->end_time, downtime_data->fixed, downtime_data->triggered_by, downtime_data->duration,
                   downtime_data->author_name, downtime_data->comment_data);
         json_object_set_new (json, "rawData", json_string (temp));
-        json_object_set_new (json, "customer", json_string (strcmp (cov_customer, "") ? cov_customer : customer));
+        json_object_set_new (json, "customer",
+            strcmp (cov_customer, "") ? json_string (cov_customer) :
+            strcmp (customer, "") ? json_string (customer) : json_null()
+        );
 
         send_to_alerta (alert_url, json_dumps (json, 0));
         json_decref (json);
@@ -619,7 +641,10 @@ check_handler (int event_type, void *data)
                   downtime_data->end_time, downtime_data->fixed, downtime_data->triggered_by, downtime_data->duration,
                   downtime_data->author_name, downtime_data->comment_data);
         json_object_set_new (json, "rawData", json_string (temp));
-        json_object_set_new (json, "customer", json_string (strcmp (cov_customer, "") ? cov_customer : customer));
+        json_object_set_new (json, "customer",
+            strcmp (cov_customer, "") ? json_string (cov_customer) :
+            strcmp (customer, "") ? json_string (customer) : json_null()
+        );
 
         send_to_alerta (alert_url, json_dumps (json, 0));
         json_decref (json);
