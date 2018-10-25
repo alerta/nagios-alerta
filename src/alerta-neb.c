@@ -6,9 +6,20 @@
  *
  *****************************************************************************/
 
-#include <string.h>
 
-#include "config.h"
+#ifdef NAEMON
+
+#include <stdlib.h>
+#include <stdarg.h>
+#include <string.h>
+#include <stdbool.h>
+#include <naemon/naemon.h>
+
+#else
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
 #include "nebmodules.h"
 #include "nebcallbacks.h"
@@ -17,9 +28,12 @@
 #include "neberrors.h"
 #include "broker.h"
 
+#include "logging.h"
 #include "config.h"
 #include "common.h"
 #include "nagios.h"
+
+#endif
 
 #include "uthash.h"
 
@@ -29,7 +43,7 @@
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
 char *NAME = "Nagios-Alerta Gateway";
-char *VERSION = "4.0.1";
+char *VERSION = "5.0.0";
 
 void *alerta_module_handle = NULL;
 
@@ -185,34 +199,44 @@ display_downtime_type (int downtime_type)
 }
 
 void
-log_debug (char *message)
+logger(int level, const char *message, ...)
+{
+#ifdef NAEMON
+  nm_log(level, "alerta: %s", message);
+#else
+  logit(level, TRUE, "alerta: %s", message);
+#endif
+}
+
+void
+log_debug (const char *message)
 {
   if (debug)
-    write_to_all_logs (message, NSLOG_INFO_MESSAGE);
+    logger (NSLOG_INFO_MESSAGE, message);
 }
 
 void
-log_info (char *message)
+log_info (const char *message)
 {
-  write_to_all_logs (message, NSLOG_INFO_MESSAGE);
+  logger (NSLOG_INFO_MESSAGE, message);
 }
 
 void
-log_warning (char *message)
+log_warning (const char *message)
 {
-  write_to_all_logs (message, NSLOG_RUNTIME_WARNING);
+  logger (NSLOG_RUNTIME_WARNING, message);
 }
 
 void
-log_config (char *message)
+log_config (const char *message)
 {
-  write_to_all_logs (message, NSLOG_CONFIG_ERROR);
+  logger (NSLOG_CONFIG_ERROR, message);
 }
 
 void
-log_error (char *message)
+log_error (const char *message)
 {
-  write_to_all_logs (message, NSLOG_RUNTIME_ERROR);
+  logger (NSLOG_RUNTIME_ERROR, message);
 }
 
 int
@@ -264,7 +288,7 @@ send_to_alerta (char *url, char *message)
 
   if (res != CURLE_OK)
   {
-    snprintf (message, MESSAGE_SIZE, "[alerta] curl_easy_perform() failed: %s", curl_easy_strerror (res));
+    snprintf (message, MESSAGE_SIZE, "curl_easy_perform() failed: %s", curl_easy_strerror (res));
     log_error (message);
     return res;
   }
@@ -274,27 +298,27 @@ send_to_alerta (char *url, char *message)
   {
   case 200:
   case 201:
-    snprintf (message, MESSAGE_SIZE, "[alerta] HTTP response OK (status=%ld)", status);
+    snprintf (message, MESSAGE_SIZE, "HTTP response OK (status=%ld)", status);
     log_debug (message);
     break;
   case 202:
-    snprintf (message, MESSAGE_SIZE, "[alerta] HTTP request ignored during blackout period. (status=%ld)", status);
+    snprintf (message, MESSAGE_SIZE, "HTTP request ignored during blackout period. (status=%ld)", status);
     log_warning (message);
     break;
   case 401:
-    snprintf (message, MESSAGE_SIZE, "[alerta] HTTP auth error. API key not configured? (status=%ld)", status);
+    snprintf (message, MESSAGE_SIZE, "HTTP auth error. API key not configured? (status=%ld)", status);
     log_config (message);
     break;
   case 403:
-    snprintf (message, MESSAGE_SIZE, "[alerta] HTTP request forbidden or rejected. (status=%ld)", status);
+    snprintf (message, MESSAGE_SIZE, "HTTP request forbidden or rejected. (status=%ld)", status);
     log_config (message);
     break;
   case 429:
-    snprintf (message, MESSAGE_SIZE, "[alerta] HTTP request rate limited. Too many alerts? (status=%ld)", status);
+    snprintf (message, MESSAGE_SIZE, "HTTP request rate limited. Too many alerts? (status=%ld)", status);
     log_error (message);
     break;
   default:
-    snprintf (message, MESSAGE_SIZE, "[alerta] HTTP server error (status=%ld)", status);
+    snprintf (message, MESSAGE_SIZE, "HTTP server error (status=%ld)", status);
     log_error (message);
     break;
   }
@@ -315,7 +339,7 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_LICENSE, "MIT License");
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_DESC, "Nagios Event Broker module that forwards Nagios events to Alerta");
 
-  snprintf (message, MESSAGE_SIZE, "[alerta] Initialising %s module, v%s", NAME, VERSION);
+  snprintf (message, MESSAGE_SIZE, "Initialising %s module, v%s", NAME, VERSION);
   log_info (message);
 
   char endpoint[URL_SIZE] = "";
@@ -346,19 +370,19 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
       snprintf (auth_header, AUTH_HEADER_SIZE, "Authorization: Key %s", key);
   } else
   {
-    log_config ("[alerta] API endpoint not configured.");
+    log_config ("API endpoint not configured.");
     exit (1);
   }
 
   if (debug)
-    log_info ("[alerta] debug is on");
+    log_info ("debug is on");
   else
-    log_info ("[alerta] debug is off");
+    log_info ("debug is off");
 
   if (hard_states_only)
-    log_info ("[alerta] states=Hard (only)");
+    log_info ("states=Hard (only)");
   else
-    log_info ("[alerta] states=Hard/Soft");
+    log_info ("states=Hard/Soft");
 
   curl_global_init (CURL_GLOBAL_ALL);
 
@@ -366,7 +390,7 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
   neb_register_callback (NEBCALLBACK_SERVICE_CHECK_DATA, alerta_module_handle, 0, check_handler);
   neb_register_callback (NEBCALLBACK_DOWNTIME_DATA, alerta_module_handle, 0, check_handler);
 
-  snprintf (message, MESSAGE_SIZE, "[alerta] Forward service checks, host checks and downtime to %s", endpoint);
+  snprintf (message, MESSAGE_SIZE, "Forward service checks, host checks and downtime to %s", endpoint);
   log_info (message);
 
   return NEB_OK;
@@ -381,7 +405,7 @@ nebmodule_deinit (int flags, int reason)
   neb_deregister_callback (NEBCALLBACK_SERVICE_CHECK_DATA, check_handler);
   neb_deregister_callback (NEBCALLBACK_DOWNTIME_DATA, check_handler);
 
-  log_info ("[alerta] NEB callbacks for host and service checks successfully de-registered. Bye.");
+  log_info ("NEB callbacks for host and service checks successfully de-registered. Bye.");
 
   return NEB_OK;
 }
@@ -410,7 +434,7 @@ check_handler (int event_type, void *data)
       if (host_chk_data->type == NEBTYPE_HOSTCHECK_PROCESSED)
       {
 
-        log_debug ("[alerta] Host check received.");
+        log_debug ("Host check received.");
 
         host *host_object = host_chk_data->object_ptr;
         customvar = host_object->custom_variables;
@@ -466,9 +490,9 @@ check_handler (int event_type, void *data)
         HASH_FIND_STR (downtimes, host_chk_data->host_name, dt);
 
         if (dt)
-          log_debug ("[alerta] Host in downtime period -- suppress.");
+          log_debug ("Host in downtime period -- suppress.");
         else if (hard_states_only && host_chk_data->state_type == SOFT_STATE)
-          log_debug ("[alerta] Host in Soft state -- suppress.");
+          log_debug ("Host in Soft state -- suppress.");
         else
           send_to_alerta (alert_url, json_dumps (json, 0));
 
@@ -490,7 +514,7 @@ check_handler (int event_type, void *data)
 
           if (svc_chk_data->return_code == STATE_OK)
           {
-            log_debug ("[alerta] Heartbeat service check OK.");
+            log_debug ("Heartbeat service check OK.");
 
             service *service_object = svc_chk_data->object_ptr;
             customvar = service_object->custom_variables;
@@ -517,12 +541,12 @@ check_handler (int event_type, void *data)
             json_decref (json);
           } else
           {
-            log_warning ("[alerta] Heartbeat service check failed.");
+            log_warning ("Heartbeat service check failed.");
           }
         } else
         {
 
-          log_debug ("[alerta] Service check received.");
+          log_debug ("Service check received.");
 
           service *service_object = svc_chk_data->object_ptr;
           customvar = service_object->custom_variables;
@@ -580,9 +604,9 @@ check_handler (int event_type, void *data)
           HASH_FIND_STR (downtimes, key, dt);
 
           if (dt)
-            log_debug ("[alerta] Service in downtime period -- suppress.");
+            log_debug ("Service in downtime period -- suppress.");
           else if (hard_states_only && svc_chk_data->state_type == SOFT_STATE)
-            log_debug ("[alerta] Service in Soft state -- suppress.");
+            log_debug ("Service in Soft state -- suppress.");
           else
             send_to_alerta (alert_url, json_dumps (json, 0));
 
@@ -612,7 +636,7 @@ check_handler (int event_type, void *data)
       if (downtime_data->type == NEBTYPE_DOWNTIME_START)
       {
 
-        log_debug ("[alerta] Downtime started.");
+        log_debug ("Downtime started.");
 
         HASH_ADD_STR (downtimes, key, dt);
 
@@ -645,7 +669,7 @@ check_handler (int event_type, void *data)
       if (downtime_data->type == NEBTYPE_DOWNTIME_STOP)
       {
 
-        log_debug ("[alerta] Downtime stopped.");
+        log_debug ("Downtime stopped.");
 
         downtime *dt;
         HASH_FIND_STR (downtimes, key, dt);
@@ -685,7 +709,7 @@ check_handler (int event_type, void *data)
     break;
 
   default:
-    log_warning ("[alerta] ERROR: Callback triggered for unregistered event!");
+    log_warning ("ERROR: Callback triggered for unregistered event!");
     break;
   }
 
