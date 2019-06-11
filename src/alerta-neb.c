@@ -43,7 +43,7 @@
 NEB_API_VERSION (CURRENT_NEB_API_VERSION);
 
 char *NAME = "Nagios-Alerta Gateway";
-char *VERSION = "5.0.0";
+char *VERSION = "5.0.1";
 
 void *alerta_module_handle = NULL;
 
@@ -199,12 +199,12 @@ display_downtime_type (int downtime_type)
 }
 
 void
-logger(int level, const char *message, ...)
+logger (int level, const char *message,...)
 {
 #ifdef NAEMON
-  nm_log(level, "alerta: %s", message);
+  nm_log (level, "alerta: %s", message);
 #else
-  logit(level, TRUE, "alerta: %s", message);
+  logit (level, TRUE, "alerta: %s", message);
 #endif
 }
 
@@ -334,7 +334,7 @@ nebmodule_init (int flags, char *args, nebmodule * handle)
 
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_TITLE, NAME);
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_AUTHOR, "Nick Satterly");
-  neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_COPYRIGHT, "Copyright (c) 2015-2018 Nick Satterly");
+  neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_COPYRIGHT, "Copyright (c) 2015-2019 Nick Satterly");
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_VERSION, VERSION);
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_LICENSE, "MIT License");
   neb_set_module_info (alerta_module_handle, NEBMODULE_MODINFO_DESC, "Nagios Event Broker module that forwards Nagios events to Alerta");
@@ -467,6 +467,14 @@ check_handler (int event_type, void *data)
           *long_desc = 0;
         }
 
+        clear_volatile_macros ();
+        grab_host_macros (host_object);
+
+        char *raw_command;
+        get_raw_command_line (host_object->check_command_ptr, host_object->check_command, &raw_command, 0);
+        char *command_line;
+        process_macros (raw_command, &command_line, 0);
+
         json = json_object ();
         json_object_set_new (json, "origin", json_pack ("s+", "nagios/", hostname));
         json_object_set_new (json, "resource", json_string (host_chk_data->host_name));
@@ -476,6 +484,10 @@ check_handler (int event_type, void *data)
         json_object_set_new (json, "environment", json_string (strcmp (cov_environment, "") ? cov_environment : environment));
         json_object_set_new (json, "service", json_pack ("[s]", strcmp (cov_service, "") ? cov_service : "Platform"));
         json_object_set_new (json, "tags", json_pack ("[s+]", "check=", display_check_type (host_chk_data->check_type)));
+        json_object_set_new (json, "attributes", json_pack ("{s:s,s:s}",
+                                                            "checkCommand", host_object->check_command,
+                                                            "commandLine", command_line
+                                                            ));
         json_object_set_new (json, "text", json_string (long_desc));
         snprintf (value, VALUE_SIZE, "%d/%d (%s)", host_chk_data->current_attempt, host_chk_data->max_attempts, display_state_type (host_chk_data->state_type));
         json_object_set_new (json, "value", json_string (value));
@@ -496,6 +508,8 @@ check_handler (int event_type, void *data)
         else
           send_to_alerta (alert_url, json_dumps (json, 0));
 
+        free (raw_command);
+        free (command_line);
         json_decref (json);
       }
     }
@@ -579,6 +593,15 @@ check_handler (int event_type, void *data)
             *long_desc = 0;
           }
 
+          clear_volatile_macros ();
+          grab_host_macros (service_object->host_ptr);
+          grab_service_macros (service_object);
+
+          char *raw_command;
+          get_raw_command_line (service_object->check_command_ptr, service_object->check_command, &raw_command, 0);
+          char *command_line;
+          process_macros (raw_command, &command_line, 0);
+
           json = json_object ();
           json_object_set_new (json, "origin", json_pack ("s+", "nagios/", hostname));
           json_object_set_new (json, "resource", json_string (svc_chk_data->host_name));
@@ -588,6 +611,10 @@ check_handler (int event_type, void *data)
           json_object_set_new (json, "environment", json_string (strcmp (cov_environment, "") ? cov_environment : environment));
           json_object_set_new (json, "service", json_pack ("[s]", strcmp (cov_service, "") ? cov_service : "Platform"));
           json_object_set_new (json, "tags", json_pack ("[s]", display_check_type (svc_chk_data->check_type)));
+          json_object_set_new (json, "attributes", json_pack ("{s:s,s:s}",
+                                                              "checkCommand", service_object->check_command,
+                                                              "commandLine", command_line
+                                                              ));
           json_object_set_new (json, "text", json_string (long_desc));
           snprintf (value, VALUE_SIZE, "%d/%d (%s)", svc_chk_data->current_attempt, svc_chk_data->max_attempts, display_state_type (svc_chk_data->state_type));
           json_object_set_new (json, "value", json_string (value));
@@ -610,6 +637,8 @@ check_handler (int event_type, void *data)
           else
             send_to_alerta (alert_url, json_dumps (json, 0));
 
+          free (raw_command);
+          free (command_line);
           json_decref (json);
         }
       }

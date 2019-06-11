@@ -178,4 +178,4 @@ define service {
 License
 -------
 
-Copyright (c) 2013-2017 Nick Satterly. Available under the MIT License.
+Copyright (c) 2013-2019 Nick Satterly. Available under the MIT License.
