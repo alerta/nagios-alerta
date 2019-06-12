@@ -10,13 +10,13 @@ STRIP=/usr/bin/strip
 CP=@CP@
 
 nagios3: alerta-neb.c
-	$(CC) $(MOD_CFLAGS) $(CFLAGS) -I../include -I../include/nagios3 $(LIBS) -DNAGIOS3 -o alerta-neb.o alerta-neb.c $(MOD_LDFLAGS) $(LDFLAGS) $(LIBS)
+	$(CC) $(MOD_CFLAGS) $(CFLAGS) -I../include $(LIBS) -DNAGIOS3 -o alerta-neb.o alerta-neb.c $(MOD_LDFLAGS) $(LDFLAGS) $(LIBS)
 
 nagios4: alerta-neb.c
-	$(CC) $(MOD_CFLAGS) $(CFLAGS) -I../include -I../include/nagios4 $(LIBS) -DNAGIOS4 -o alerta-neb.o alerta-neb.c $(MOD_LDFLAGS) $(LDFLAGS) $(LIBS)
+	$(CC) $(MOD_CFLAGS) $(CFLAGS) -I../include $(LIBS) -DNAGIOS4 -o alerta-neb.o alerta-neb.c $(MOD_LDFLAGS) $(LDFLAGS) $(LIBS)
 
 naemon: alerta-neb.c
-	$(CC) $(MOD_CFLAGS) $(CFLAGS) -I../include -I../include/naemon $(LIBS) -DNAEMON -o alerta-neb.o alerta-neb.c $(MOD_LDFLAGS) $(LDFLAGS) $(LIBS)
+	$(CC) $(MOD_CFLAGS) $(CFLAGS) -I../include $(LIBS) -DNAEMON -o alerta-neb.o alerta-neb.c $(MOD_LDFLAGS) $(LDFLAGS) $(LIBS)
 
 install:
 	[ -d /usr/lib/nagios ] || mkdir /usr/lib/nagios
