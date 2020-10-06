@@ -26,7 +26,7 @@ yum install -y git curl gcc make libcurl-devel jansson-devel
 
 In Debian/Ubuntu:
 ```
-apt-get install -y git curl gcc make libcurl-dev libjansson-dev
+apt-get install -y git-core curl gcc make libcurl4-openssl-dev libjansson-dev libglib2.0-dev pkg-config
 ```
 
 Installation (Nagios 3)
