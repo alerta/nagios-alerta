@@ -9,6 +9,8 @@ STRIP=/usr/bin/strip
 
 CP=@CP@
 
+all: nagios3 nagios4 naemon
+
 nagios3: alerta-neb.c
 	$(CC) $(MOD_CFLAGS) $(CFLAGS) -I../include $(LIBS) -DNAGIOS3 -o alerta-neb.o alerta-neb.c $(MOD_LDFLAGS) $(LDFLAGS) $(LIBS)
 
