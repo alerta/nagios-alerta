@@ -36,7 +36,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo make get-deps
+          sudo apt-get -y install libjansson-dev
       - name: Build artifacts
         id: build
         run: |
@@ -77,7 +77,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo make get-deps
+          sudo apt-get -y install libjansson-dev
       - name: Build artifacts
         id: build
         run: |
@@ -118,7 +118,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo make get-deps
+          sudo apt-get -y install libjansson-dev
       - name: Build artifacts
         id: build
         run: |
