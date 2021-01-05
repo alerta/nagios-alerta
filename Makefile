@@ -6,7 +6,7 @@ lint:
 	indent -i2 -di1 -br -nut -pcs -l160 -bls $(SRC_MODULE)/alerta-neb.c
 
 get-deps:
-	apt-get -y install libjansson-dev
+	apt-get -y install libjansson-dev indent
 
 nagios3: get-deps
 	cd $(SRC_MODULE) && $(MAKE) nagios3
