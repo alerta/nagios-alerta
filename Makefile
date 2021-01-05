@@ -8,13 +8,13 @@ lint:
 get-deps:
 	apt-get -y install libjansson-dev
 
-nagios3: get-deps
+nagios3:
 	cd $(SRC_MODULE) && $(MAKE) nagios3
 
-nagios4: get-deps
+nagios4:
 	cd $(SRC_MODULE) && $(MAKE) nagios4
 
-naemon: get-deps
+naemon:
 	cd $(SRC_MODULE) && $(MAKE) naemon
 
 install:
