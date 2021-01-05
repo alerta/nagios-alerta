@@ -1,17 +1,17 @@
 SRC_MODULE=./src
 
-all: get-deps
+.DEFAULT_GOAL=help
 
 get-deps:
-	sudo apt-get -y install libjansson-dev
+	apt-get -y install libjansson-dev
 
-nagios3:
+nagios3: get-deps
 	cd $(SRC_MODULE) && $(MAKE) nagios3
 
-nagios4:
+nagios4: get-deps
 	cd $(SRC_MODULE) && $(MAKE) nagios4
 
-naemon:
+naemon: get-deps
 	cd $(SRC_MODULE) && $(MAKE) naemon
 
 install:
@@ -21,3 +21,6 @@ test: nagios3 nagios4 naemon
 
 clean:
 	cd $(SRC_MODULE) && $(MAKE) $@
+
+help:
+	@echo "Nagios NEB Module"
