@@ -36,7 +36,9 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get -y install libjansson-dev
+          sudo apt-get -y install \
+            libjansson-dev \
+            libcurl-dev
       - name: Build artifacts
         id: build
         run: |
@@ -77,7 +79,9 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get -y install libjansson-dev
+          sudo apt-get -y install \
+            libjansson-dev \
+            libcurl-dev
       - name: Build artifacts
         id: build
         run: |
@@ -118,7 +122,9 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get -y install libjansson-dev
+          sudo apt-get -y install \
+            libjansson-dev \
+            libcurl-dev
       - name: Build artifacts
         id: build
         run: |
