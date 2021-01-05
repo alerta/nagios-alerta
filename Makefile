@@ -2,10 +2,7 @@ SRC_MODULE=./src
 
 .DEFAULT_GOAL=help
 
-indent:
-	apt-get install -y indent
-
-lint: indent
+lint:
 	indent -i2 -di1 -br -nut -pcs -l160 -bls $(SRC_MODULE)/alerta-neb.c
 
 get-deps:
