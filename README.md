@@ -1,7 +1,7 @@
 Nagios-to-Alerta Gateway
 ========================
 
-[![Build Status](https://travis-ci.org/alerta/nagios-alerta.png)](https://travis-ci.org/alerta/nagios-alerta)
+[![build-test](https://github.com/alerta/nagios-alerta/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/alerta/nagios-alerta/actions/workflows/test.yml)
 
 Consolidate Nagios alerts from across multiple sites into a single
 "at-a-glance" console. Nagios 3 and Nagios 4 are now supported.
