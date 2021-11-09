@@ -1,9 +1,9 @@
 #ifndef NAEMON_BUILDOPTS_H__
 #define NAEMON_BUILDOPTS_H__
-#define NAEMON_SYSCONFDIR "/usr/local/etc/naemon"
-#define NAEMON_LOCALSTATEDIR "/usr/local/var"
-#define NAEMON_LOGDIR "/usr/local/var/log/naemon"
-#define NAEMON_LOCKFILE "/usr/local/var/cache/naemon/naemon.pid"
-#define NAEMON_GROUP "naemon"
-#define NAEMON_USER "naemon"
+#define NAEMON_SYSCONFDIR "@@NAEMON_SYSCONFDIR@@"
+#define NAEMON_LOCALSTATEDIR "@@NAEMON_LOCALSTATEDIR@@"
+#define NAEMON_LOGDIR "@@NAEMON_LOGDIR@@"
+#define NAEMON_LOCKFILE "@@NAEMON_LOCKFILE@@"
+#define NAEMON_GROUP "@@NAEMON_GROUP@@"
+#define NAEMON_USER "@@NAEMON_USER@@"
 #endif

@@ -110,6 +110,7 @@ extern int retain_state_information;
 extern int retention_update_interval;
 extern int use_retained_program_state;
 extern int use_retained_scheduling_info;
+extern int retained_scheduling_randomize_window;
 extern int retention_scheduling_horizon;
 extern char *retention_file;
 extern unsigned long retained_host_attribute_mask;
@@ -144,6 +145,10 @@ extern unsigned long max_debug_file_size;
 
 extern int allow_empty_hostgroup_assignment;
 extern int allow_circular_dependencies;
+extern int host_down_disable_service_checks;
+extern int service_skip_check_dependency_status;
+extern int service_skip_check_host_down_status;
+extern int host_skip_check_dependency_status;
 
 extern time_t last_program_stop;
 extern time_t event_start;
