@@ -1,0 +1,61 @@
+name: build-test
+
+on:
+  pull_request:
+  push:
+
+env:
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            indent
+      - name: Lint
+        id: lint
+        run: make lint
+
+      - uses: act10ns/slack@v1
+        with:
+          status: ${{ job.status }}
+          steps: ${{ toJson(steps) }}
+        if: failure()
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install \
+            libjansson-dev \
+            libcurl4-openssl-dev
+      - name: Build artifacts
+        id: build-nagios3
+        run: |
+          make nagios3
+          mv src/alerta-neb.o src/alerta-neb.o.nagios3
+      - name: Build artifacts
+        id: build-nagios4
+        run: |
+          make nagios4
+          mv src/alerta-neb.o src/alerta-neb.o.nagios4
+      - name: Build artifacts
+        id: build-naemon
+        run: |
+          make naemon
+          mv src/alerta-neb.o src/alerta-neb.o.naemon
+
+      - uses: act10ns/slack@v1
+        with:
+          status: ${{ job.status }}
+          steps: ${{ toJson(steps) }}
+        # if: failure()
