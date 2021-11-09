@@ -39,17 +39,17 @@ jobs:
           sudo apt-get -y install \
             libjansson-dev \
             libcurl4-openssl-dev
-      - name: Build artifacts
+      - name: Build Nagios3 artifacts
         id: build-nagios3
         run: |
           make nagios3
           mv src/alerta-neb.o src/alerta-neb.o.nagios3
-      - name: Build artifacts
+      - name: Build Nagios4 artifacts
         id: build-nagios4
         run: |
           make nagios4
           mv src/alerta-neb.o src/alerta-neb.o.nagios4
-      - name: Build artifacts
+      - name: Build Naemon artifacts
         id: build-naemon
         run: |
           make naemon
